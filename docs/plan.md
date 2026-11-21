@@ -114,14 +114,15 @@ the guard, watch picking up a saved file, and a byte-for-byte group restore with
     - `doctor` checks that the launchd agent is loaded;
     - an Angular library without `dest` publishes ng-packagr's `dist`.
 - Known limits:
-  - Two CLI versions used side by side restart the daemon on each switch, cancelling a running job.
   - An Nx project without `project.json` is built by Nx only when its `package.json` has a `build`
     script or `nx.targets.build`, or it has an `ng-package.json`. One whose `build` target comes only from
     a plugin leaves no sign for dryfit to read: it falls back to an npm build script or to publishing the
     library root, and `add --build/--publish-dir` covers it.
-- Not covered by automated tests: restarting a daemon of another version (it needs two builds), and
-  `daemon install`, whose plist is unit-tested but which was not loaded into launchd on the author's
-  machine without asking.
+- Not covered by automated tests, but run by hand on 2026-11-22 (macOS 27, Node 24): restarting a daemon
+  of another version (two builds of 0.0.1 and 9.9.9: the newer replaces the older, an older CLI keeps a
+  newer daemon), and `daemon install` (loaded into launchd, restarted after `kill -9`, stayed stopped after
+  `daemon stop`, left nothing behind after `daemon uninstall`). The first needs two builds; the second
+  changes the login items of the machine it runs on.
 
 ## M4 · Menu bar app
 

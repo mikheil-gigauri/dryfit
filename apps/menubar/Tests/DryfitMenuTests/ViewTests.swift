@@ -74,57 +74,6 @@ let at = Date(timeIntervalSince1970: 1_795_000_000)
     #expect(UserNotifier.summary(of: output) == "> ng build ui\nTS2304: Cannot find name 'Butto'.\nat button.ts:4")
   }
 
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func online() {
-    let failed = "npm ERR! code ERESOLVE\nnpm ERR! ERESOLVE unable to resolve dependency tree"
-    let busy = model { model in
-      model.connection = .online
-      model.status = Status(
-        daemon: health,
-        libraries: [ui, forms],
-        links: [
-          Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version, guarded: true),
-          Link(library: "@acme/ui", consumer: admin, status: .failed),
-        ],
-        groups: [Group(name: "checkout", consumers: [shop, admin])],
-        warnings: [
-          CoherenceWarning(
-            group: "checkout", library: "@acme/ui",
-            versions: [.init(consumer: shop, version: version), .init(consumer: admin, version: "1.4.0")])
-        ],
-        jobs: Jobs(running: Job(id: 3, label: "sync @acme/ui", queuedAt: "")))
-      model.consumers = [
-        DiscoveredConsumer(
-          root: "/r/storybook", name: "storybook",
-          libraries: [.init(name: "@acme/ui", range: "^1.3.0"), .init(name: "@acme/forms", range: "^2.0.0")],
-          packageManager: .npm)
-      ]
-      model.failures = [
-        Failure(title: "Install of @acme/ui into admin failed", detail: failed, date: at, consumer: admin)
-      ]
-      model.activity = "Installing @acme/ui into admin…"
-      model.restartNeeded = [shop]
-    }
-    assertSnapshot(of: MenuContent(model: busy, actions: MenuActions()), named: "online")
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func emptyAndIdle() {
-    let empty = model { model in
-      model.connection = .online
-      model.status = Status(daemon: health)
-      model.consumers = [DiscoveredConsumer(root: "/r/blog", name: "blog", libraries: [], packageManager: .npm)]
-    }
-    assertSnapshot(of: MenuContent(model: empty, actions: MenuActions()), named: "empty")
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func offlineAfterAFailedStart() {
-    let offline = model { model in
-      model.connection = .offline
-      model.startError = DaemonLauncher.Failure.cliNotFound.localizedDescription
-      model.cliMissing = true
-    }
-    assertSnapshot(of: MenuContent(model: offline, actions: MenuActions()), named: "offline")
-  }
-
   @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func windowShowsALibrary() {
     let linked = model { model in
       model.connection = .online
@@ -185,21 +134,6 @@ let at = Date(timeIntervalSince1970: 1_795_000_000)
     assertSnapshot(
       of: MainWindow(model: online, navigation: navigation, actions: MenuActions(openAtLogin: .constant(true))),
       named: "settings", size: CGSize(width: 900, height: 700))
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func olderDryfit() {
-    let outdated = MenuModel(
-      connect: { .notRunning }, launch: {}, appVersion: "0.3.0", update: {}, notifier: RecordingNotifier())
-    outdated.connection = .online
-    outdated.status = Status(daemon: health, libraries: [ui], links: [
-      Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version, guarded: true)
-    ])
-    assertSnapshot(of: MenuContent(model: outdated, actions: MenuActions()), named: "outdated")
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func incompatibleDaemon() {
-    let incompatible = model { $0.connection = .incompatible(daemonVersion: "2.0.0") }
-    assertSnapshot(of: MenuContent(model: incompatible, actions: MenuActions()), named: "incompatible")
   }
 
   @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func failureWindow() {

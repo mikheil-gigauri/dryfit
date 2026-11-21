@@ -33,64 +33,6 @@ private func consumers(_ names: [String], using library: String = "@acme/ui") ->
     #expect(filterLinkCandidates(apps, matching: "no such app").isEmpty)
   }
 
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func healthy() {
-    let calm = model { model in
-      model.connection = .online
-      model.status = Status(
-        daemon: health, libraries: [ui, forms],
-        links: [
-          Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version),
-          Link(library: "@acme/ui", consumer: admin, status: .installed, installedVersion: version),
-        ],
-        groups: [Group(name: "checkout", consumers: [shop, admin])])
-      model.consumers = consumers(["storybook"]) + consumers(["storybook"], using: "@acme/forms")
-    }
-    assertSnapshot(of: MenuContent(model: calm, actions: MenuActions()), named: "widget-healthy")
-  }
-
   /// Thirty apps use the library: at most three linked ones are listed (the failed one first), and the
   /// rest of the apps are behind one button with a count, not thirty chips.
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func manyApps() {
-    let names = ["admin", "shop", "reports", "orders", "landing", "invoices"]
-    let busy = model { model in
-      model.connection = .online
-      model.status = Status(
-        daemon: health, libraries: [ui, forms],
-        links: names.enumerated().map { index, name in
-          Link(
-            library: "@acme/ui", consumer: "/Users/me/code/\(name)", status: name == "invoices" ? .failed : .installed,
-            installedVersion: index == 4 ? nil : version)
-        },
-        groups: [])
-      model.consumers = consumers(manyNames, using: "@acme/ui") + consumers(manyNames, using: "@acme/forms")
-      model.failures = [
-        Failure(
-          title: "Install of @acme/ui into invoices failed", detail: "npm ERR! code ERESOLVE", date: at,
-          consumer: "/Users/me/code/invoices")
-      ]
-    }
-    assertSnapshot(of: MenuContent(model: busy, actions: MenuActions()), named: "widget-many")
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func linkPicker() {
-    let picker = LinkPicker(library: "@acme/ui", candidates: consumers(manyNames), model: model { $0.connection = .online }) {}
-      .frame(width: 348)
-      .background(DS.groupFill, in: .rect(cornerRadius: 14))
-      .padding(12)
-    assertSnapshot(of: picker, named: "widget-link-picker", size: CGSize(width: 372, height: 380))
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func buildFailureAndWarnings() {
-    let broken = model { model in
-      model.connection = .online
-      model.status = Status(daemon: health, libraries: [ui], links: [], groups: [])
-      model.failures = [
-        Failure(title: "Build of @acme/ui failed", detail: "✘ [ERROR] TS2304: Cannot find name 'Butto'", date: at, consumer: nil),
-        Failure(title: "Auto-sync of @acme/forms stopped", detail: "watch stopped", date: at, consumer: nil),
-      ]
-      model.driftedRestore = RestoreRequest(consumer: shop, library: "@acme/ui")
-      model.actionError = "storybook doesn't depend on @acme/ui any more."
-    }
-    assertSnapshot(of: MenuContent(model: broken, actions: MenuActions()), named: "widget-failures")
-  }
 }

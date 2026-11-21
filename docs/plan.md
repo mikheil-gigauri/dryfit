@@ -118,9 +118,11 @@ the guard, watch picking up a saved file, and a byte-for-byte group restore with
     can exhaust inotify on large repositories; Linux is an M5 platform, so a filtered walk lands then.
   - Nx projects defined without `project.json`, or with inferred targets, fall back to an npm build
     script or to publishing the library root; `add --build/--publish-dir` covers them.
-- Not covered by automated tests: restarting a daemon of another version (it needs two builds), and
-  `daemon install`, whose plist is unit-tested but which was not loaded into launchd on the author's
-  machine without asking.
+- Not covered by automated tests, but run by hand on 2026-11-22 (macOS 27, Node 24): restarting a daemon
+  of another version (two builds of 0.0.1 and 9.9.9: the newer replaces the older, an older CLI keeps a
+  newer daemon), and `daemon install` (loaded into launchd, restarted after `kill -9`, stayed stopped after
+  `daemon stop`, left nothing behind after `daemon uninstall`). The first needs two builds; the second
+  changes the login items of the machine it runs on.
 
 ## M4 · Menu bar app
 

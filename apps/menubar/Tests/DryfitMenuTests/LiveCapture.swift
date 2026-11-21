@@ -70,7 +70,7 @@ struct LiveScene {
 }
 
 @MainActor enum LiveScenes {
-  static var all: [LiveScene] { [prims] + widgets }
+  static var all: [LiveScene] { [prims] + widgets + windows + failureWindows }
 
   static let prims = LiveScene(name: "prims", size: CGSize(width: 520, height: 300)) {
     AnyView(
@@ -205,5 +205,62 @@ extension LiveScenes {
       widget("m-conn", model { $0.connection = .connecting }),
       widget("m-inc", versioned { $0.connection = .incompatible(daemonVersion: "1.2.0") }),
     ]
+  }
+}
+
+// MARK: The dryfit window, one scene per state of the mockup
+
+extension LiveScenes {
+  private static let updates = MenuActions(
+    openAtLogin: .constant(false), checkForUpdates: {}, installUpdatesAutomatically: .constant(true))
+
+  private static func window(_ name: String, _ m: MenuModel, _ selection: SidebarItem? = nil, editor: GroupEditorRequest? = nil) -> LiveScene {
+    LiveScene(name: name, size: CGSize(width: 1000, height: 690), chrome: true) {
+      let navigation = AppNavigation()
+      navigation.selection = selection
+      return AnyView(MainWindow(model: m, navigation: navigation, actions: updates))
+    }
+  }
+
+  @MainActor private static func broken() -> MenuModel {
+    let failed = Failure(
+      title: "Install of @acme/ui into admin failed",
+      detail: "npm ERR! code ERESOLVE\nnpm ERR! Could not resolve dependency: peer @angular/core@\"^18\" from @acme/ui@1.4.1-dev.1432",
+      date: Date().addingTimeInterval(-120), consumer: admin)
+    return online {
+      $0.status = Status(
+        daemon: health, libraries: [ui, forms],
+        links: [Link(library: "@acme/ui", consumer: admin, status: .failed), Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version)],
+        groups: [Group(name: "checkout", consumers: [shop, admin])])
+      $0.failures = [failed]
+    }
+  }
+
+  @MainActor static var windows: [LiveScene] {
+    let lib = "@acme/ui"
+    return [
+      window("w-lib", online(), .library(lib)),
+      window("w-lib-fail", broken(), .library(lib)),
+      window("w-app", online(), .app(admin)),
+      window("w-grp", online(), .group("checkout")),
+      window("w-wel", model { $0.connection = .online; $0.status = Status(daemon: health); $0.roots = []; $0.startsAtLogin = false }),
+      window("w-set", online { $0.roots = ["/Users/me/code", "/Users/me/work/clients"]; $0.hiddenApps = ["/Users/me/code/legacy-portal", "/Users/me/code/prototype"]; $0.startsAtLogin = true }, .settings),
+      window("w-off", model { $0.connection = .offline }),
+      window("w-nocli", model { $0.connection = .offline; $0.cliMissing = true }),
+      window("w-conn", model { $0.connection = .connecting }),
+    ]
+  }
+
+  @MainActor static var failureWindows: [LiveScene] {
+    let build = Failure(
+      title: "Build of @acme/ui failed", detail: "> ng build ui\n\n✘ [ERROR] TS2304: Cannot find name 'Butto'. [plugin angular-compiler]\n\n    projects/ui/src/button/button.ts:4:15:\n      4 │   readonly kind: Butto = 'primary';\n        ╵                  ~~~~~\n\nBuild failed with 1 error.",
+      date: at, consumer: "/Users/me/repos/ui-lib", library: "@acme/ui")
+    let other = Failure(title: "Auto-sync of @acme/forms stopped", detail: "", date: at.addingTimeInterval(-600), consumer: nil)
+    func scene(_ name: String, _ failures: [Failure]) -> LiveScene {
+      LiveScene(name: name, size: CGSize(width: 760, height: 440)) {
+        AnyView(FailureView(failures: failures, selection: .constant(failures.first?.id)))
+      }
+    }
+    return [scene("f-multi", [build, other]), scene("f-one", [build]), scene("f-empty", [])]
   }
 }

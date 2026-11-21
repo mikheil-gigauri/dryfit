@@ -88,7 +88,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       notifier: relay,
       orderStore: .userDefaults())
     super.init()
-    failureWindow = FailureWindow(model: model)
+    failureWindow = FailureWindow(model: model) { [weak self] library in
+      guard let self else { return }
+      self.navigation.selection = .library(library)
+      self.statusMenu.openWindow?()
+      NSApp.activate()
+    }
     relay.target = UserNotifier { [weak self] id in self?.failureWindow?.show(selecting: id) } ?? SilentNotifier()
   }
 

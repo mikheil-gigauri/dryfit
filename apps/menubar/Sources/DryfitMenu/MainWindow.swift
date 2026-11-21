@@ -124,12 +124,12 @@ private struct Sidebar: View {
     let groups = model.groups.filter { matches($0.name) }
     let libraries = model.libraries.filter { matches($0.library.name) }
     List(selection: $navigation.selection) {
-      Section("Libraries") {
+      Section {
         ForEach(libraries) { row in
           let failed = row.links.contains { $0.status == .failed }
           SidebarLabel(
-            name: row.library.name, symbol: failed ? "exclamationmark.triangle.fill" : "shippingbox",
-            tint: failed ? .red : nil, watched: row.library.isWatched, count: row.links.count, caption: caption(row))
+            name: row.library.name, symbol: "shippingbox", failed: failed, dev: false,
+            watched: row.library.isWatched, count: row.links.count, caption: caption(row), showsZero: true)
             .tag(SidebarItem.library(row.library.name))
             .contextMenu {
               Button("Sync Now") { Task { await model.sync(row.library.name) } }
@@ -141,13 +141,15 @@ private struct Sidebar: View {
         if model.libraries.isEmpty, model.connection == .online {
           Text("No libraries yet").foregroundStyle(DS.muted).selectionDisabled()
         }
+      } header: {
+        SidebarHeader(title: "Libraries")
       }
       if !apps.isEmpty {
-        Section("Apps", isExpanded: $appsExpanded) {
+        Section(isExpanded: $appsExpanded) {
           ForEach(apps) { app in
             SidebarLabel(
-              name: app.name, symbol: app.hasFailedInstall ? "exclamationmark.triangle.fill" : "macwindow",
-              tint: app.hasFailedInstall ? .red : nil, watched: false, count: app.linked.count, caption: caption(app))
+              name: app.name, symbol: "macwindow", failed: app.hasFailedInstall, dev: !app.linked.isEmpty,
+              watched: false, count: app.linked.count, caption: caption(app))
               .tag(SidebarItem.app(app.root))
               .contextMenu {
                 Button("Show in Finder") { revealInFinder(app.root) }
@@ -158,18 +160,23 @@ private struct Sidebar: View {
               }
           }
           .onMove(perform: filtering ? nil : { model.move(.apps, ids: allApps.map(\.root), from: $0, to: $1) })
+        } header: {
+          SidebarHeader(title: "Apps", count: allApps.count)
         }
       }
       if !groups.isEmpty {
-        Section("Groups") {
+        Section {
           ForEach(groups) { group in
             SidebarLabel(
-              name: group.name, symbol: "square.stack.3d.up", tint: nil, watched: false,
-              count: group.consumers.count, caption: group.consumers.count == 1 ? "1 app" : "\(group.consumers.count) apps")
+              name: group.name, symbol: "square.stack.3d.up", failed: false, dev: false, watched: false,
+              count: group.consumers.count, caption: group.consumers.count == 1 ? "1 app" : "\(group.consumers.count) apps",
+              differs: model.status?.warnings.contains { $0.group == group.name } == true)
               .tag(SidebarItem.group(group.name))
               .contextMenu { moveItems(.groups, group.name, groups.map(\.name)) }
           }
           .onMove(perform: filtering ? nil : { model.move(.groups, ids: groups.map(\.name), from: $0, to: $1) })
+        } header: {
+          SidebarHeader(title: "Groups")
         }
       }
     }
@@ -279,30 +286,59 @@ private struct Sidebar: View {
   }
 }
 
-/// One sidebar row: symbol, name, an auto-sync mark, and how many apps it links as the row's badge.
+/// A sidebar section's name, small and spaced, with how many it holds.
+private struct SidebarHeader: View {
+  let title: String
+  var count: Int? = nil
+
+  var body: some View {
+    HStack {
+      Text(title)
+      Spacer()
+      if let count { Text("\(count)").monospacedDigit() }
+    }
+    .font(.system(size: 11, weight: .semibold))
+    .textCase(.uppercase)
+    .tracking(0.5)
+    .foregroundStyle(DS.muted)
+    .padding(.trailing, 8)
+  }
+}
+
+/// One sidebar row: a grey symbol, the name, an auto-sync mark, and at the end what matters most: a red
+/// dot for a failed install, a DEV chip for an app on a dev build, otherwise how many apps it links.
 private struct SidebarLabel: View {
   let name: String
   let symbol: String
-  let tint: Color?
+  let failed: Bool
+  let dev: Bool
   let watched: Bool
   let count: Int
   let caption: String
+  var differs = false
+  /// A library with no apps says 0; an app with none says nothing.
+  var showsZero = false
 
   var body: some View {
-    Label {
-      HStack(spacing: 4) {
-        Text(name).font(DS.body).lineLimit(1)
-        if watched {
-          Image(systemName: "arrow.clockwise").font(DS.caption).foregroundStyle(.secondary)
-            .accessibilityHidden(true)
-        }
+    HStack(spacing: 8) {
+      Image(systemName: symbol).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
+      Text(name).font(DS.body).lineLimit(1)
+      Spacer(minLength: 4)
+      if failed {
+        StatusDot(color: .red)
+      } else if dev {
+        Chip(text: "DEV", kind: .dev)
+      } else if differs {
+        Chip(text: "differ", kind: .warning)
+      } else if count == 0 && !showsZero {
+        EmptyView()
+      } else {
+        Text("\(count)").font(DS.caption).foregroundStyle(DS.muted).monospacedDigit()
       }
-    } icon: {
-      Image(systemName: symbol).foregroundStyle(tint.map(AnyShapeStyle.init) ?? AnyShapeStyle(.tint))
     }
-    .badge(count)
     .help(caption)
-    .accessibilityValue(caption)
+    .accessibilityElement(children: .combine)
+    .accessibilityValue(failed ? "Install failed. \(caption)" : caption)
   }
 }
 
@@ -314,18 +350,12 @@ private struct WelcomeView: View {
 
   var body: some View {
     PinnedPage {
-      PinnedHeader(
-        symbol: "shippingbox", tint: .release, title: "Test your library in your apps",
-        subtitle: "Set up in a few steps. You can come back to this any time."
-      ) {
-        EmptyView()
-      } actions: {
-        EmptyView()
-      }
+      Text("Welcome to dryfit").font(DS.title).frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 44)
     } content: {
       Text("dryfit publishes each change to a private registry on this Mac and installs it into your apps the way a release would. When you're done, it puts every app back exactly as it was.")
         .foregroundStyle(DS.muted)
         .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: 620, alignment: .leading)
       steps
       if let error = model.actionError {
         ErrorBanner(message: error) { model.dismissActionError() }
@@ -445,8 +475,9 @@ private struct LibraryDetail: View {
     return PinnedPage {
       PinnedHeader(
         symbol: "shippingbox", tint: .release, title: library.name,
-        subtitle: [published.built.map { "\(published.version) · built \($0)" } ?? published.version, syncing ? "Syncing…" : nil]
-          .compactMap { $0 }.joined(separator: " · ")
+        subtitle: [published.built.map { "built \($0)" }, syncing ? "Syncing…" : nil]
+          .compactMap { $0 }.joined(separator: " · "),
+        mono: published.built == nil ? nil : library.lastPublishedVersion
       ) {
         if published.built != nil { Chip(text: "DEV BUILD", kind: .dev) }
       } actions: {
@@ -457,11 +488,8 @@ private struct LibraryDetail: View {
           .help(library.isWatched
             ? "Auto-sync is on: every change you save to \(name) is synced to its apps"
             : "Turn on to sync every change you save to \(name)")
-        IconButton(symbol: "folder", label: "Show \(name) in Finder", busy: false) { revealInFinder(library.root) }
-        Button { Task { await model.sync(name) } } label: {
-          Label("Sync now", systemImage: "arrow.clockwise")
-        }
-        .buttonStyle(PillButtonStyle(kind: .primary, busy: syncing))
+        Button("Sync now") { Task { await model.sync(name) } }
+          .buttonStyle(PillButtonStyle(kind: .primary, busy: syncing))
         .disabled(row.links.isEmpty)
         .help(row.links.isEmpty ? "Link an app first" : "Build, publish and install into every linked app")
       }
@@ -478,6 +506,8 @@ private struct LibraryDetail: View {
             GroupRow {
               Text("No app is linked yet. Link one below to install the dev build.").foregroundStyle(DS.muted)
             }
+          } else {
+            LinkedAppsHeader()
           }
           ForEach(links) { link in LinkedAppRow(link: link, model: model) }
         }
@@ -582,26 +612,17 @@ private struct GroupDetail: View {
             Button(library.name) { Task { await model.linkGroup(name, library: library.name) } }
           }
         } label: {
-          Label("Link library", systemImage: "link.badge.plus")
+          Text("Link library")
         }
         .disabled(model.status?.libraries.isEmpty ?? true)
         .help("Link a library into every app in \(name)")
-        Button { Task { await model.restoreGroup(name) } } label: {
-          Label("Restore all", systemImage: "arrow.uturn.backward")
-        }
-        .buttonStyle(.pill(busy: model.isBusy(.restoreGroup(name))))
+        Button("Restore all") { Task { await model.restoreGroup(name) } }
+          .buttonStyle(.pill(busy: model.isBusy(.restoreGroup(name))))
         .help("Put every app in \(name) back on released versions")
       }
     } content: {
       if let error = model.actionError {
         ErrorBanner(message: error) { model.dismissActionError() }
-      }
-      ForEach(Array(warnings.enumerated()), id: \.offset) { _, warning in
-        Callout(
-          condition: .warning, title: "\(warning.library) differs between these apps",
-          message: warning.versions
-            .map { "\(projectName($0.consumer)) is on \(DevVersion.describe($0.version, timeZone: timeZone))" }
-            .joined(separator: " · "))
       }
       VStack(alignment: .leading, spacing: 0) {
         SectionHeader(title: "Apps", count: group.consumers.count) {
@@ -621,6 +642,18 @@ private struct GroupDetail: View {
               }
             }
           }
+        }
+      }
+      ForEach(Array(warnings.enumerated()), id: \.offset) { _, warning in
+        Callout(
+          condition: .warning, title: "\(warning.library) differs between these apps",
+          message: warning.versions
+            .map { "\(projectName($0.consumer)) is on \(DevVersion.describe($0.version, timeZone: timeZone))" }
+            .joined(separator: " · "),
+          actionsAtEnd: true
+        ) {
+          Button("Link \(warning.library) into both") { Task { await model.linkGroup(name, library: warning.library) } }
+            .buttonStyle(.pill(busy: model.isBusy(.linkGroup(name))))
         }
       }
       DangerCard(

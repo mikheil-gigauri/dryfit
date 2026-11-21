@@ -166,12 +166,12 @@ struct AppDetail: View {
       PinnedHeader(symbol: "macwindow", tint: .purple, title: app.name, subtitle: summary(app)) {
         if let manager = app.packageManager { Chip(text: manager) }
       } actions: {
-        IconButton(symbol: "folder", label: "Show \(app.name) in Finder", busy: false) { revealInFinder(app.root) }
-        if !app.linked.isEmpty {
-          Button { Task { await model.restore(app.root) } } label: {
-            Label("Restore all", systemImage: "arrow.uturn.backward")
-          }
+        Button { revealInFinder(app.root) } label: { Label("Show in Finder", systemImage: "folder") }
           .buttonStyle(.pill)
+          .help("Show \(app.name) in Finder")
+        if !app.linked.isEmpty {
+          Button("Restore all") { Task { await model.restore(app.root) } }
+            .buttonStyle(.pill)
           .disabled(model.isBusy(.restore(app.root, nil)) || app.libraries.contains { model.isBusy(.restore(app.root, $0.library)) })
           .help("Put every library in \(app.name) back on its release")
         }
@@ -184,6 +184,7 @@ struct AppDetail: View {
       VStack(alignment: .leading, spacing: 0) {
         SectionHeader("Libraries", count: app.libraries.count)
         HairlineGroup {
+          AppLibrariesHeader()
           ForEach(app.libraries) { entry in
             AppLibraryRow(app: app, entry: entry, model: model)
           }
@@ -217,37 +218,70 @@ private struct AppLibraryRow: View {
 
   var body: some View {
     GroupRow {
-      if let link = entry.link {
-        StatusIcon(condition: link.condition)
-      } else {
-        Image(systemName: "shippingbox").foregroundStyle(DS.muted).frame(width: 18).accessibilityHidden(true)
-      }
       TwoLine(title: entry.library, caption: detail, titleFont: DS.rowTitle)
         .frame(maxWidth: .infinity, alignment: .leading)
         .layoutPriority(1)
-      if entry.link?.status == .failed {
-        Chip(text: "Install failed", kind: .failed)
-      } else {
-        BuildChip(dev: entry.link != nil)
+      Group {
+        if entry.link?.status == .failed {
+          Chip(text: "Install failed", kind: .failed)
+        } else {
+          BuildChip(dev: entry.link != nil)
+        }
       }
-      if entry.link == nil {
-        Button("Link") { Task { await model.link(entry.library, into: app.root) } }
-          .buttonStyle(.accentPill(busy: model.isBusy(.link(entry.library, app.root))))
-          .help("Install the dev build of \(entry.library) into \(app.name)")
-      } else {
-        Button("Restore") { Task { await model.restore(app.root, library: entry.library) } }
-          .buttonStyle(.pill(busy: model.isBusy(.restore(app.root, entry.library))))
-          .disabled(model.isBusy(.restore(app.root, nil)))
-          .help("Put \(app.name) back on the release of \(entry.library)")
+      .frame(width: LinkedAppRow.statusWidth, alignment: .leading)
+      Text(version).font(DS.mono).foregroundStyle(entry.link?.status == .installed ? Color.primary : DS.muted)
+        .lineLimit(1).frame(width: LinkedAppRow.versionWidth, alignment: .leading)
+      Group {
+        if entry.link == nil {
+          Button("Link") { Task { await model.link(entry.library, into: app.root) } }
+            .buttonStyle(.accentPill(busy: model.isBusy(.link(entry.library, app.root))))
+            .help("Install the dev build of \(entry.library) into \(app.name)")
+        } else {
+          Button("Restore") { Task { await model.restore(app.root, library: entry.library) } }
+            .buttonStyle(.pill(busy: model.isBusy(.restore(app.root, entry.library))))
+            .disabled(model.isBusy(.restore(app.root, nil)))
+            .help("Put \(app.name) back on the release of \(entry.library)")
+        }
       }
+      .frame(width: LinkedAppRow.actionWidth, alignment: .trailing)
     }
     .contextMenu {
       Button("Show Installed Copy in Finder") { revealInFinder(app.root + "/node_modules/" + entry.library) }
     }
   }
 
+  /// "1.4.1 · 14:32" for a dev build, the range for a release.
+  private var version: String {
+    if let link = entry.link {
+      guard link.status == .installed, let installed = link.installedVersion else { return "—" }
+      return DevVersion.describe(installed, timeZone: timeZone).replacingOccurrences(of: " · dev ", with: " · ")
+    }
+    return entry.range ?? "—"
+  }
+
   private var detail: String {
     if let link = entry.link { return link.detail(timeZone: timeZone) }
     return entry.range.map(describeDependency) ?? "Released version"
+  }
+}
+
+/// The column names above an app's libraries.
+private struct AppLibrariesHeader: View {
+  var body: some View {
+    HStack(spacing: 8) {
+      Text("Library").frame(maxWidth: .infinity, alignment: .leading)
+      Text("Build").frame(width: LinkedAppRow.statusWidth, alignment: .leading)
+      Text("Version").frame(width: LinkedAppRow.versionWidth, alignment: .leading)
+      Color.clear.frame(width: LinkedAppRow.actionWidth, height: 1)
+    }
+    .font(.system(size: 11, weight: .semibold))
+    .textCase(.uppercase)
+    .tracking(0.4)
+    .foregroundStyle(DS.muted)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(DS.neutralFill.opacity(0.5))
+    .accessibilityHidden(true)
   }
 }

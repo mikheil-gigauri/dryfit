@@ -11,7 +11,7 @@ public final class StatusMenu: NSObject {
   let model: MenuModel
   let actions: MenuActions
   /// Set by the menu bar icon, which is always on screen, so the menu can open SwiftUI's windows.
-  var openWindow: (() -> Void)?
+  public var openWindow: (() -> Void)?
   var navigation: AppNavigation?
   private var monitor: Any?
 

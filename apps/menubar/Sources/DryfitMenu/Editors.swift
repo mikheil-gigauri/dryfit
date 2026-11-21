@@ -166,11 +166,16 @@ struct GroupEditor: View {
             .font(DS.caption).foregroundStyle(DS.badText).padding(.top, 4)
         }
       }
-      SheetLabel("Apps")
+      SheetLabel(members.isEmpty ? "Apps" : "Apps · \(members.count) selected")
       // Thirty apps need finding, not scrolling.
-      if projects.count > 6 {
-        TextField("Search apps", text: $search, prompt: Text("Search \(projects.count) apps")).field().padding(.bottom, 8)
+      HStack(spacing: 6) {
+        Image(systemName: "magnifyingglass").foregroundStyle(DS.muted).accessibilityHidden(true)
+        TextField("Filter apps", text: $search, prompt: Text("Filter apps")).textFieldStyle(.plain)
       }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 5)
+      .background(DS.neutralFill, in: .rect(cornerRadius: DS.buttonRadius))
+      .padding(.bottom, 8)
       ScrollView {
         HairlineGroup {
           if projects.isEmpty {
@@ -191,7 +196,7 @@ struct GroupEditor: View {
               }
               .toggleStyle(.checkbox13)
               Spacer(minLength: 8)
-              Text(abbreviatedPath(project)).font(DS.caption).foregroundStyle(DS.muted).lineLimit(1)
+              Text(abbreviatedPath(project)).font(DS.mono).foregroundStyle(DS.muted).lineLimit(1)
                 .truncationMode(.head)
             }
           }
@@ -200,18 +205,20 @@ struct GroupEditor: View {
             Button("Add app…") { Task { await addFolder() } }.buttonStyle(.pill)
           }
         }
+        .frame(maxWidth: .infinity)
       }
       .scrollBounceBehavior(.basedOnSize)
+      .scrollIndicators(.hidden)
       .frame(maxHeight: 320)
       .fixedSize(horizontal: false, vertical: true)
       if let saveError {
         Callout(condition: .failed, title: "Couldn't save", message: saveError).padding(.top, 12)
       }
       HStack(spacing: 8) {
-        Text(members.isEmpty ? "No apps chosen" : "\(members.count) chosen").font(DS.caption).foregroundStyle(DS.muted)
         Spacer()
         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(saving)
         Button(isEditing ? "Save" : "Create group") { save() }
+          .buttonStyle(.primaryPill)
           .keyboardShortcut(.defaultAction)
           .disabled(trimmedName.isEmpty || nameTaken || members.isEmpty || saving)
       }

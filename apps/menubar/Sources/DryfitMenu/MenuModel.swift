@@ -14,10 +14,12 @@ public struct Failure: Identifiable, Equatable, Sendable {
   /// What failed, such as the build of one library, so a newer failure of it replaces this one and a
   /// success clears it. Nil for one-off failures, which stay until dismissed.
   public let subject: String?
+  /// The library the failure is about, so the failures window can open its page.
+  public let library: String?
 
   public init(
     id: UUID = UUID(), title: String, detail: String, date: Date = .now, consumer: String? = nil,
-    subject: String? = nil
+    subject: String? = nil, library: String? = nil
   ) {
     self.id = id
     self.title = title
@@ -25,6 +27,7 @@ public struct Failure: Identifiable, Equatable, Sendable {
     self.date = date
     self.consumer = consumer
     self.subject = subject
+    self.library = library
   }
 }
 
@@ -432,7 +435,7 @@ public struct LibraryRow: Identifiable, Equatable {
     case .buildStarted(let library):
       activity = "Building \(library)…"
     case .buildFailed(let library, let output):
-      fail("Build of \(library) failed", output, subject: Self.buildSubject(library))
+      fail("Build of \(library) failed", output, subject: Self.buildSubject(library), library: library)
     case .buildSucceeded(let library):
       recover(Self.buildSubject(library), "\(library) builds again")
     case .publishSucceeded(let library, let version):
@@ -442,7 +445,7 @@ public struct LibraryRow: Identifiable, Equatable {
     case .installFailed(let library, let consumer, _, let output):
       fail(
         "Install of \(library) into \(projectName(consumer)) failed", output, consumer: consumer,
-        subject: Self.installSubject(library, consumer))
+        subject: Self.installSubject(library, consumer), library: library)
     case .installSucceeded(let library, let consumer, _):
       recover(Self.installSubject(library, consumer), "\(library) installs into \(projectName(consumer)) again")
     case .consumerRestored(let consumer, let library, _):
@@ -468,7 +471,7 @@ public struct LibraryRow: Identifiable, Equatable {
       if let error, Self.unseenFailureCodes.contains(error.code) { fail(error.message, error.message) }
       Task { await refresh(clearingActivityWhenIdle: true) }
     case .watchFailed(let library, let message):
-      fail("Auto-sync of \(library) stopped", message, subject: "watch \(library)")
+      fail("Auto-sync of \(library) stopped", message, subject: "watch \(library)", library: library)
       scheduleRefresh()
     case .libraryChanged, .unknown:
       break
@@ -482,8 +485,10 @@ public struct LibraryRow: Identifiable, Equatable {
 
   /// Records a failure. One of something already failing takes its place, so saving a broken file again
   /// and again shows one failure, not a pile, and notifies once with a sound.
-  private func fail(_ title: String, _ detail: String, consumer: String? = nil, subject: String? = nil) {
-    let failure = Failure(title: title, detail: detail, consumer: consumer, subject: subject)
+  private func fail(
+    _ title: String, _ detail: String, consumer: String? = nil, subject: String? = nil, library: String? = nil
+  ) {
+    let failure = Failure(title: title, detail: detail, consumer: consumer, subject: subject, library: library)
     let repeated = subject != nil && failures.contains { $0.subject == subject }
     failures = Array(([failure] + failures.filter { subject == nil || $0.subject != subject }).prefix(20))
     hasUnseenFailure = true

@@ -53,7 +53,12 @@ private let names = [
           Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version),
           Link(library: "@acme/ui", consumer: admin, status: .installed, installedVersion: "1.3.0"),
         ],
-        groups: [Group(name: "checkout", consumers: [shop, admin])])
+        groups: [Group(name: "checkout", consumers: [shop, admin])],
+        warnings: [
+          CoherenceWarning(
+            group: "checkout", library: "@acme/ui",
+            versions: [.init(consumer: shop, version: version), .init(consumer: admin, version: "1.3.0")])
+        ])
     }
     window(grouped, .group("checkout"), height: 620, named: "window-group")
   }

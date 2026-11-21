@@ -213,7 +213,7 @@ let at = Date(timeIntervalSince1970: 1_795_000_000)
               ╵                  ~~~~~
       """
     let failures = [
-      Failure(title: "Build of @acme/ui failed", detail: output, date: at),
+      Failure(title: "Build of @acme/ui failed", detail: output, date: at, library: "@acme/ui"),
       Failure(title: "Auto-sync of @acme/forms stopped", detail: "EMFILE: too many open files", date: at - 600),
     ]
     assertSnapshot(

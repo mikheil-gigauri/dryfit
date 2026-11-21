@@ -51,13 +51,21 @@ export async function detectLibraryBuild(fs: FileSystem, root: string): Promise<
     const targets = isRecord(nxField.targets) ? nxField.targets : {};
     const scripts = isRecord(manifest.scripts) ? manifest.scripts : {};
     // Only a library with a sign that it builds, and a workspace with nx installed, is handed to Nx.
-    const builds = typeof scripts.build === 'string' || 'build' in targets || ngPackage !== undefined;
+    const pluginTarget = await pluginBuildTarget(fs, inferredRoot, libraryRoot);
+    const builds =
+      typeof scripts.build === 'string' ||
+      'build' in targets ||
+      ngPackage !== undefined ||
+      pluginTarget !== undefined;
     if (builds && (await fs.exists(nx))) {
       const name = typeof nxField.name === 'string' ? nxField.name : String(manifest.name);
       const projectRoot = relativeInside(inferredRoot, libraryRoot) ?? '';
+      // A plugin may call its target something else, but a build script or target of the project's own wins.
+      const target =
+        typeof scripts.build === 'string' || 'build' in targets ? 'build' : (pluginTarget ?? 'build');
       return {
         kind: 'nx',
-        build: { command: nx, args: ['build', name] },
+        build: { command: nx, args: [target, name] },
         publishDir: ngDest ?? nxOutputPath(nxField, inferredRoot, projectRoot) ?? libraryRoot,
       };
     }
@@ -88,6 +96,64 @@ export async function detectLibraryBuild(fs: FileSystem, root: string): Promise<
     return { kind: 'npm-script', build: { command: 'npm', args: ['run', 'build'] }, publishDir: libraryRoot };
   }
   return { kind: 'none', publishDir: libraryRoot };
+}
+
+/**
+ * The Nx plugins that infer a build target from a config file in the project, with the option that can
+ * rename it. A plugin infers nothing for a project without its config file, so the file is the sign.
+ */
+const BUILD_PLUGINS: ReadonlyArray<{
+  readonly plugin: string;
+  readonly files: readonly string[];
+  readonly targetOption: (options: Record<string, unknown>) => unknown;
+}> = [
+  {
+    plugin: '@nx/js/typescript',
+    files: ['tsconfig.lib.json'],
+    targetOption: (options) => (isRecord(options.build) ? options.build.targetName : undefined),
+  },
+  {
+    plugin: '@nx/vite/plugin',
+    files: ['vite.config.ts', 'vite.config.mts', 'vite.config.js', 'vite.config.mjs'],
+    targetOption: (options) => options.buildTargetName,
+  },
+  {
+    plugin: '@nx/rollup/plugin',
+    files: ['rollup.config.ts', 'rollup.config.js', 'rollup.config.mjs', 'rollup.config.cjs'],
+    targetOption: (options) => options.buildTargetName,
+  },
+  {
+    plugin: '@nx/webpack/plugin',
+    files: ['webpack.config.ts', 'webpack.config.js', 'webpack.config.cjs'],
+    targetOption: (options) => options.buildTargetName,
+  },
+];
+
+/** The name of the build target a plugin in nx.json infers for the library, if one does. */
+async function pluginBuildTarget(
+  fs: FileSystem,
+  workspace: string,
+  libraryRoot: string,
+): Promise<string | undefined> {
+  const nxJson = await readJson(fs, joinPath(workspace, 'nx.json'));
+  const plugins = Array.isArray(nxJson?.plugins) ? nxJson.plugins : [];
+  for (const entry of plugins) {
+    const name = typeof entry === 'string' ? entry : isRecord(entry) ? entry.plugin : undefined;
+    const known = BUILD_PLUGINS.find((candidate) => candidate.plugin === name);
+    if (!known) continue;
+    let present = false;
+    for (const file of known.files) {
+      if (await fs.exists(joinPath(libraryRoot, file))) {
+        present = true;
+        break;
+      }
+    }
+    if (!present) continue;
+    const options = isRecord(entry) && isRecord(entry.options) ? entry.options : {};
+    const renamed = known.targetOption(options);
+    return typeof renamed === 'string' && renamed !== '' ? renamed : 'build';
+  }
+  return undefined;
 }
 
 function nxOutputPath(

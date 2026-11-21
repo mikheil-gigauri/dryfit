@@ -71,4 +71,19 @@ private let names = [
     }
     #expect(filterLinkCandidates(busy.consumers ?? [], matching: "portal").count == 2)
   }
+
+  /// A group of many possible apps gets a search, a count, and a save error that says what failed.
+  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func groupEditorWithManyApps() {
+    let busy = model { model in
+      model.connection = .online
+      model.status = Status(daemon: health, libraries: [ui], links: [], groups: [])
+      model.consumers = names.map {
+        DiscoveredConsumer(
+          root: "/Users/me/code/\($0)", name: $0, libraries: [.init(name: "@acme/ui", range: "^1.3.0")],
+          packageManager: .npm)
+      }
+    }
+    let editor = GroupEditor(request: .new, model: busy, navigation: AppNavigation())
+    assertSnapshot(of: editor, named: "sheet-group-new", size: CGSize(width: 440, height: 600))
+  }
 }

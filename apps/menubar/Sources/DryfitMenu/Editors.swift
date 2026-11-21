@@ -21,7 +21,7 @@ struct LibraryEditor: View {
         form(preview)
       } else if let loadError {
         SheetHeader(symbol: "shippingbox", title: "Not a library", subtitle: abbreviatedPath(root))
-        Text(loadError).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true).padding(.top, 12)
+        Callout(condition: .failed, title: "dryfit can't use this folder", message: loadError).padding(.top, 14)
       } else {
         HStack(spacing: 8) {
           ProgressView().controlSize(.small)
@@ -46,8 +46,8 @@ struct LibraryEditor: View {
       .padding(.top, 14)
     }
     .font(DS.body)
-    .padding(14)
-    .frame(width: 420)
+    .padding(20)
+    .frame(width: 440)
     // Closed mid-save, the save would still finish and then move the window to the library.
     .interactiveDismissDisabled(saving)
     // The error state has no Cancel to carry Escape.
@@ -85,7 +85,7 @@ struct LibraryEditor: View {
     }
     Footnote("The folder whose package.json gets published, usually where the build writes its output.")
     if let saveError {
-      Text(saveError).font(DS.caption).foregroundStyle(.red).padding(.top, 8)
+      Callout(condition: .failed, title: "Couldn't save", message: saveError).padding(.top, 12)
     }
   }
 
@@ -137,6 +137,15 @@ struct GroupEditor: View {
   @State private var extra: [String] = []
   @State private var saveError: String?
   @State private var saving = false
+  @State private var search = ""
+
+  /// The apps whose name or folder holds every word typed.
+  private var shown: [String] {
+    let words = search.split(separator: " ")
+    return projects.filter { project in
+      words.allSatisfy { projectName(project).localizedStandardContains($0) || project.localizedStandardContains($0) }
+    }
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -153,16 +162,24 @@ struct GroupEditor: View {
         TextField("Name", text: $name, prompt: Text("storefront"))
           .field()
         if nameTaken {
-          Text("There's already a group called \(trimmedName).").font(DS.caption).foregroundStyle(.red).padding(.top, 4)
+          Label("There's already a group called \(trimmedName).", systemImage: "exclamationmark.triangle.fill")
+            .font(DS.caption).foregroundStyle(DS.badText).padding(.top, 4)
         }
       }
       SheetLabel("Apps")
+      // Thirty apps need finding, not scrolling.
+      if projects.count > 6 {
+        TextField("Search apps", text: $search, prompt: Text("Search \(projects.count) apps")).field().padding(.bottom, 8)
+      }
       ScrollView {
         HairlineGroup {
           if projects.isEmpty {
             GroupRow { Text("No apps found in your project folders. Add one below.").foregroundStyle(DS.muted) }
           }
-          ForEach(projects, id: \.self) { project in
+          if shown.isEmpty && !projects.isEmpty {
+            GroupRow { Text("No app matches \u{201C}\(search)\u{201D}.").foregroundStyle(DS.muted) }
+          }
+          ForEach(shown, id: \.self) { project in
             GroupRow {
               Toggle(isOn: Binding(
                 get: { members.contains(project) },
@@ -188,9 +205,10 @@ struct GroupEditor: View {
       .frame(maxHeight: 320)
       .fixedSize(horizontal: false, vertical: true)
       if let saveError {
-        Text(saveError).font(DS.caption).foregroundStyle(.red).padding(.top, 8)
+        Callout(condition: .failed, title: "Couldn't save", message: saveError).padding(.top, 12)
       }
       HStack(spacing: 8) {
+        Text(members.isEmpty ? "No apps chosen" : "\(members.count) chosen").font(DS.caption).foregroundStyle(DS.muted)
         Spacer()
         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(saving)
         Button(isEditing ? "Save" : "Create group") { save() }
@@ -200,8 +218,8 @@ struct GroupEditor: View {
       .padding(.top, 14)
     }
     .font(DS.body)
-    .padding(14)
-    .frame(width: 420)
+    .padding(20)
+    .frame(width: 440)
     .interactiveDismissDisabled(saving)
     .onAppear {
       if case .edit(let group) = request {

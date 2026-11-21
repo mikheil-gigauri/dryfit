@@ -85,9 +85,9 @@ function cliReference(): string {
   return out.join('\n');
 }
 
-/** The menu bar app's own snapshot images, so the site shows the menu as the tests last saw it. */
+/** The menu bar app's screenshots, kept in `apps/site/screenshots` (captured from the running app by the menu bar's LiveCapture test). */
 async function menuScreenshots(): Promise<void> {
-  const source = join(repo, 'apps', 'menubar', 'Tests', 'DryfitMenuTests', '__Snapshots__');
+  const source = join(site, 'screenshots');
   const target = join(site, 'public', 'menu');
   await mkdir(target, { recursive: true });
   for (const name of ['online', 'window-library'].flatMap((shot) => [

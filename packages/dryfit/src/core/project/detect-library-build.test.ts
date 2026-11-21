@@ -38,6 +38,73 @@ describe('detectLibraryBuild', () => {
     });
   });
 
+  describe('an Nx project without project.json', () => {
+    const workspace = { '/ws/nx.json': '{}', '/ws/node_modules/.bin/nx': '' };
+
+    it('is built by Nx under its package name when package.json has a build script', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/libs/util/package.json': json({ name: '@acme/util', scripts: { build: 'tsc' } }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/util')).toEqual({
+        kind: 'nx',
+        build: { command: '/ws/node_modules/.bin/nx', args: ['build', '@acme/util'] },
+        publishDir: '/ws/libs/util',
+      });
+    });
+
+    it('uses the name and output path package.json gives under "nx"', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/libs/util/package.json': json({
+          name: '@acme/util',
+          nx: {
+            name: 'util',
+            targets: { build: { options: { outputPath: '{workspaceRoot}/dist/{projectRoot}' } } },
+          },
+        }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/util')).toMatchObject({
+        kind: 'nx',
+        build: { args: ['build', 'util'] },
+        publishDir: '/ws/dist/libs/util',
+      });
+    });
+
+    it('is built by Nx when ng-package.json says it is an Angular library', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/libs/ui/package.json': json({ name: '@acme/ui' }),
+        '/ws/libs/ui/ng-package.json': json({ dest: '../../dist/libs/ui' }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/ui')).toMatchObject({
+        kind: 'nx',
+        publishDir: '/ws/dist/libs/ui',
+      });
+    });
+
+    it('keeps the npm script when the workspace has no nx installed', async () => {
+      const fs = InMemoryFileSystem.with({
+        '/ws/nx.json': '{}',
+        '/ws/libs/util/package.json': json({ name: '@acme/util', scripts: { build: 'tsc' } }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/util')).toMatchObject({ kind: 'npm-script' });
+    });
+
+    it('publishes the sources when nothing says it builds', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/libs/tokens/package.json': json({ name: '@acme/tokens' }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/tokens')).toMatchObject({ kind: 'none' });
+    });
+  });
+
   it('builds an Angular CLI library by its project name in angular.json', async () => {
     const fs = InMemoryFileSystem.with({
       '/ws/angular.json': json({ projects: { app: { root: '' }, 'acme-ui': { root: 'projects/ui' } } }),

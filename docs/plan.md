@@ -115,8 +115,10 @@ the guard, watch picking up a saved file, and a byte-for-byte group restore with
     - an Angular library without `dest` publishes ng-packagr's `dist`.
 - Known limits:
   - Two CLI versions used side by side restart the daemon on each switch, cancelling a running job.
-  - Nx projects defined without `project.json`, or with inferred targets, fall back to an npm build
-    script or to publishing the library root; `add --build/--publish-dir` covers them.
+  - An Nx project without `project.json` is built by Nx only when its `package.json` has a `build`
+    script or `nx.targets.build`, or it has an `ng-package.json`. One whose `build` target comes only from
+    a plugin leaves no sign for dryfit to read: it falls back to an npm build script or to publishing the
+    library root, and `add --build/--publish-dir` covers it.
 - Not covered by automated tests: restarting a daemon of another version (it needs two builds), and
   `daemon install`, whose plist is unit-tested but which was not loaded into launchd on the author's
   machine without asking.

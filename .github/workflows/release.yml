@@ -67,9 +67,12 @@ jobs:
       - if: steps.newest.outputs.newest == 'true' && steps.app-token.outcome != 'success'
         run: echo "::warning::No release GitHub App configured, so the release pull request gets no CI. See CONTRIBUTING.md#releasing."
       # With changesets on main: opens or updates the release pull request. Once that is merged:
-      # publishes to npm, tags @dryfit/cli@<version> and creates the GitHub release. No npm token: npm
-      # trusts this workflow (trusted publishing, set on the package's npmjs.com settings) and adds
-      # provenance by itself.
+      # publishes to npm and tags @dryfit/cli@<version>. No npm token: npm trusts this workflow (trusted
+      # publishing, set on the package's npmjs.com settings) and adds provenance by itself.
+      # It does not create the GitHub release: a release is "latest" the moment it exists, and installed
+      # apps fetch releases/latest/download/appcast.xml, which 404s until the menu bar job has attached
+      # it, so every check in that window failed with "error retrieving update information". The menu
+      # bar job creates the release once everything is attached.
       - id: changesets
         if: steps.newest.outputs.newest == 'true'
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -77,6 +80,7 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token || github.token }}
           version-script: npm run version-packages
           publish-script: npm run release
+          create-github-releases: false
           commit-message: "chore: release"
           pr-title: Release
       - id: version
@@ -176,13 +180,31 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           ZIP: ${{ steps.notarized.outputs.zip || steps.adhoc.outputs.zip }}
         run: echo "path=$(apps/menubar/scripts/appcast.sh "$ZIP")" >> "$GITHUB_OUTPUT"
-      - name: Attach them to the GitHub release
+      # A draft is invisible to "latest", so installed apps keep seeing the previous release's feed until
+      # the app, the dmg and the feed are all attached; publishing then makes the new one latest at once.
+      # A re-run finds the release already there and attaches again.
+      - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           DMG: ${{ steps.dmg.outputs.path }}
           ZIP: ${{ steps.notarized.outputs.zip || steps.adhoc.outputs.zip }}
           APPCAST: ${{ steps.appcast.outputs.path }}
-        run: gh release upload "@dryfit/cli@$VERSION" "$DMG" "$ZIP" ${APPCAST:+"$APPCAST"} --clobber
+        run: |
+          tag="@dryfit/cli@$VERSION"
+          # The list includes drafts, which a lookup by tag does not find: a re-run after a failure here
+          # must reuse the draft, not make a second one.
+          if ! gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qxF "$tag"; then
+            # The notes are this version's section of the changelog, as the changesets action wrote them.
+            notes="$RUNNER_TEMP/notes.md"
+            awk -v heading="## $VERSION" '$0 == heading { on = 1; next } /^## / { on = 0 } on' packages/dryfit/CHANGELOG.md > "$notes"
+            if [ -s "$notes" ]; then
+              gh release create "$tag" --verify-tag --draft --title "$tag" --notes-file "$notes"
+            else
+              gh release create "$tag" --verify-tag --draft --title "$tag" --generate-notes
+            fi
+          fi
+          gh release upload "$tag" "$DMG" "$ZIP" ${APPCAST:+"$APPCAST"} --clobber
+          gh release edit "$tag" --draft=false --latest
       - name: Update the Homebrew cask
         if: steps.secrets.outputs.cask == 'true'
         env:

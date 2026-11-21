@@ -1,6 +1,6 @@
 {
   "name": "@dryfit/cli",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Test unreleased npm libraries in real apps: dryfit publishes your library to a local registry and installs it into its consumers, then puts them back exactly as they were.",
   "keywords": [
     "npm",

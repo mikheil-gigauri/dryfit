@@ -468,8 +468,9 @@ private struct LibraryCard: View {
       Button {
         withAnimation(.snappy) { isFolded.toggle() }
       } label: {
-        Text(showsFolded ? "▸" : "▾").font(.system(size: 10)).foregroundStyle(Theme.faint)
-          .frame(width: 10, height: 19.6).contentShape(.rect)
+        Icon(kind: .chevron, size: 16, color: Theme.muted)
+          .rotationEffect(.degrees(showsFolded ? 0 : 90))
+          .frame(width: 16, height: 19.6).contentShape(.rect)
       }
       .buttonStyle(.plain)
       .disabled(squeezed)
@@ -516,7 +517,7 @@ private struct LibraryCard: View {
     .font(Theme.small)
     .foregroundStyle(Theme.muted)
     .lineLimit(1)
-    .padding(.leading, 28)
+    .padding(.leading, 36)
     .padding(.trailing, 12)
     .padding(.bottom, 9)
   }

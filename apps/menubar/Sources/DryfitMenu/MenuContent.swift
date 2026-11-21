@@ -66,7 +66,7 @@ public struct MenuContent: View {
       }
     }
     .font(DS.body)
-    .frame(width: 340)
+    .frame(width: 372)
     .onAppear { model.menuOpened() }
     // The rest of what the old footer menu held is on the menu bar icon's right-click menu. These keep
     // its shortcuts working while the window is open.
@@ -101,33 +101,40 @@ private struct Header: View {
   let openWindow: () -> Void
 
   var body: some View {
-    HStack(spacing: 8) {
-      Circle().fill(dot).frame(width: 7, height: 7).accessibilityHidden(true)
-      TwoLine(title: "dryfit", caption: subtitle, titleFont: DS.medium)
+    HStack(spacing: 10) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("dryfit").font(DS.sheetTitle)
+        HStack(spacing: 6) {
+          StatusDot(color: dot)
+          Text(subtitle).font(DS.caption).foregroundStyle(DS.muted).lineLimit(1)
+        }
+      }
       Spacer(minLength: 8)
-      Button("Open", action: openWindow)
+      Button("Open dryfit", action: openWindow)
         .buttonStyle(.pill)
         .help("Open the dryfit window to add libraries, link apps and manage groups")
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 9)
+    .padding(.horizontal, 16)
+    .padding(.top, 14)
+    .padding(.bottom, 12)
   }
 
   private var dot: Color {
     switch model.connection {
-    case .online: .green
+    case .online: model.failures.isEmpty ? .green : .red
     case .connecting, .starting: .yellow
-    case .offline: Color.primary.opacity(0.2)
+    case .offline: Color.primary.opacity(0.25)
     case .incompatible: .orange
     }
   }
 
+  /// What is wrong comes first: a failure is a count in words, not just a colour.
   private var subtitle: String {
     switch model.connection {
     case .online:
-      if !model.failures.isEmpty {
-        return model.failures.count == 1 ? "Running · 1 failure" : "Running · \(model.failures.count) failures"
-      }
+      let failures = model.failures.count
+      if failures > 0 { return failures == 1 ? "Running · 1 needs attention" : "Running · \(failures) need attention" }
+      if model.activity != nil { return "Running · syncing" }
       return model.status.map { "Running, version \($0.daemon.version)" } ?? "Running"
     case .connecting: return "Looking for dryfit…"
     case .starting: return "Starting…"
@@ -146,7 +153,7 @@ private struct Footer: View {
   let showSettings: () -> Void
 
   var body: some View {
-    HStack(spacing: 6) {
+    HStack(spacing: 8) {
       if let activity = model.activity {
         ProgressView().controlSize(.mini)
         Text(activity).lineLimit(1).truncationMode(.middle)
@@ -163,17 +170,17 @@ private struct Footer: View {
       }
       Spacer(minLength: 8)
       Button(action: showSettings) {
-        Image(systemName: "gearshape").frame(width: 18, height: 18).hitTarget()
+        Image(systemName: "gearshape").font(.system(size: 14)).frame(width: 22, height: 22).hitTarget(CGSize(width: 22, height: 22))
       }
       .buttonStyle(.plain)
       .help("Settings (⌘,)")
       .accessibilityLabel("Settings")
     }
-    .font(DS.body)
+    .font(DS.caption)
     .foregroundStyle(DS.muted)
-    .frame(minHeight: 18)
-    .padding(.horizontal, 12)
-    .padding(.vertical, 7)
+    .frame(minHeight: 22)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
   }
 }
 
@@ -201,7 +208,7 @@ private struct OnlineContent: View {
     }
   }
 
-  /// Failures a link row does not already show as "Failed · Show output".
+  /// Failures a link row does not already show as "Install failed · Show output".
   private var banners: [Failure] {
     let shown = Set(
       model.libraries.flatMap(\.links).filter { $0.status == .failed }.compactMap {
@@ -211,38 +218,37 @@ private struct OnlineContent: View {
   }
 
   private var sections: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    VStack(alignment: .leading, spacing: 10) {
       if let failure = banners.first {
         FailureBanner(failure: failure, more: banners.count - 1, model: model, actions: actions)
-          .padding(.bottom, 8)
       }
       if let request = model.driftedRestore {
-        DriftedRestoreBanner(request: request, model: model).padding(.bottom, 8)
+        DriftedRestoreBanner(request: request, model: model)
       }
       if let error = model.actionError {
-        ErrorBanner(message: error) { model.dismissActionError() }.padding(.bottom, 8)
+        ErrorBanner(message: error) { model.dismissActionError() }
       }
       if model.libraries.isEmpty {
         GetStarted(addLibrary: addLibrary)
       }
       ForEach(model.libraries) { row in
         LibraryCard(row: row, model: model, actions: actions) { show(.library(row.library.name)) }
-          .padding(.bottom, 8)
       }
       if !model.groups.isEmpty {
         Text("Groups")
-          .font(DS.caption)
+          .font(DS.small.weight(.semibold))
+          .textCase(.uppercase)
+          .tracking(0.5)
           .foregroundStyle(DS.muted)
-          .padding(.horizontal, 2)
+          .padding(.horizontal, 4)
           .padding(.top, 6)
-          .padding(.bottom, 4)
         ForEach(model.groups) { group in
           GroupRowView(group: group, model: model) { show(.group(group.name)) }
         }
       }
     }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 8)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 4)
   }
 }
 
@@ -257,17 +263,17 @@ private struct Centered<Actions: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       Image(systemName: symbol)
-        .font(.system(size: 24))
+        .font(.system(size: 30))
         .foregroundStyle(tint.map(AnyShapeStyle.init) ?? AnyShapeStyle(DS.muted))
         .accessibilityHidden(true)
-      Text(title).font(DS.headline).multilineTextAlignment(.center).padding(.top, 6).padding(.bottom, 4)
+      Text(title).font(DS.headline).multilineTextAlignment(.center).padding(.top, 8).padding(.bottom, 4)
       Text(text).font(DS.body).foregroundStyle(DS.muted).multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
       actions
     }
     .frame(maxWidth: .infinity)
-    .padding(.horizontal, 16)
-    .padding(.vertical, 18)
+    .padding(.horizontal, 24)
+    .padding(.vertical, 24)
   }
 }
 
@@ -276,10 +282,10 @@ private struct GetStarted: View {
 
   var body: some View {
     Centered(
-      symbol: "shippingbox", title: "Test your library in your apps",
+      symbol: "shippingbox", tint: .release, title: "Test your library in your apps",
       text: "Add a library you're working on, and dryfit installs each change into the apps that use it."
     ) {
-      Button("Add library", action: addLibrary).buttonStyle(.primaryPill).padding(.top, 12)
+      Button("Add library", action: addLibrary).buttonStyle(.primaryPill).controlSize(.regular).padding(.top, 12)
     }
   }
 }
@@ -292,22 +298,12 @@ private struct FailureBanner: View {
   let actions: MenuActions
 
   var body: some View {
-    HStack(alignment: .top, spacing: 7) {
-      Image(systemName: "xmark.circle").foregroundStyle(.red).accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(failure.title).font(DS.medium)
-        Text(firstLine).font(DS.mono).foregroundStyle(DS.muted).lineLimit(2)
-        HStack(spacing: 6) {
-          Button(more > 0 ? "Show \(more + 1) failures" : "Show output") { actions.showFailures(failure.id) }
-            .buttonStyle(.pill)
-          // Clears every failure, so with more than one it says so.
-          Button(more > 0 ? "Dismiss all" : "Dismiss") { model.clearFailures() }.buttonStyle(.pill)
-        }
-        .padding(.top, 4)
-      }
-      Spacer(minLength: 0)
+    Callout(condition: .failed, title: failure.title, message: firstLine, output: true) {
+      Button(more > 0 ? "Show \(more + 1) failures" : "Show output") { actions.showFailures(failure.id) }
+        .buttonStyle(.pill)
+      // Clears every failure, so with more than one it says so.
+      Button(more > 0 ? "Dismiss all" : "Dismiss") { model.clearFailures() }.buttonStyle(.pill)
     }
-    .card()
   }
 
   private var firstLine: String {
@@ -321,28 +317,29 @@ struct DriftedRestoreBanner: View {
   let model: MenuModel
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .top, spacing: 7) {
-        Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).accessibilityHidden(true)
-        Text("\(projectName(request.consumer))'s package.json changed after it was linked. Restoring puts back the version from before linking, and drops those changes.")
-          .fixedSize(horizontal: false, vertical: true)
+    Callout(
+      condition: .warning, title: "\(projectName(request.consumer))'s package.json changed",
+      message: "Restoring puts back the version from before linking, and drops those changes."
+    ) {
+      Button("Cancel") { model.driftedRestore = nil }.buttonStyle(.pill)
+      Button("Restore anyway") {
+        Task { await model.restore(request.consumer, library: request.library, force: true) }
       }
-      HStack(spacing: 6) {
-        Spacer()
-        Button("Cancel") { model.driftedRestore = nil }.buttonStyle(.pill)
-        Button("Restore anyway") {
-          Task { await model.restore(request.consumer, library: request.library, force: true) }
-        }
-        .buttonStyle(.dangerPill)
-      }
+      .buttonStyle(.dangerPill)
     }
-    .font(DS.body)
-    .card()
   }
 }
 
-/// A library as a card: its state and controls on top, then, unless folded, the apps it is linked
-/// into and one-click links for the apps that use it. A card is content, so a hairline, not glass.
+/// A card's surface: lighter than the glass behind it, with a hairline edge.
+extension View {
+  fileprivate func cardSurface() -> some View {
+    background(DS.groupFill, in: .rect(cornerRadius: 14))
+      .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(DS.cardBorder, lineWidth: 0.5) }
+  }
+}
+
+/// A library as a card: its name and Auto-sync on top, what it is, then, unless folded, the apps it
+/// is linked into (the ones that need you first) and a way to link more.
 private struct LibraryCard: View {
   let row: LibraryRow
   let model: MenuModel
@@ -350,54 +347,155 @@ private struct LibraryCard: View {
   let open: () -> Void
   /// Folded libraries, by name, one per line; kept between launches.
   @AppStorage("foldedLibraries") private var folded = ""
+  @State private var picking = false
   @Environment(\.timeZone) private var timeZone
+
+  /// More linked apps than this are left to the window, which has room for them.
+  private static let visibleLinks = 3
 
   var body: some View {
     let candidates = model.linkCandidates(for: name)
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 7) {
-        Button {
-          withAnimation(.snappy) { isFolded.toggle() }
-        } label: {
-          Image(systemName: isFolded ? "chevron.right" : "chevron.down")
-            .font(.system(size: 11))
-            .foregroundStyle(DS.muted)
-            .frame(width: 12, height: 22)
-            .hitTarget(CGSize(width: 12, height: 22))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
-        Button(action: open) {
-          TwoLine(title: name, caption: subtitle(candidates: candidates.count), titleFont: DS.medium)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .pointerStyle(.link)
-        .help("Show \(name) in the dryfit window")
-        Text("Auto").font(DS.caption).foregroundStyle(DS.muted).accessibilityHidden(true)
-        Toggle("Auto-sync \(name)", isOn: watch)
-          .toggleStyle(.mini)
-          .disabled(model.isBusy(.watch(name)))
-          .help(row.library.isWatched ? "Auto-sync is on: every change you save is synced" : "Auto-sync: sync every change you save")
-        IconButton(
-          symbol: "arrow.clockwise", label: "Sync \(name) now",
-          busy: model.isBusy(.sync(name)) || model.status?.jobs.running?.label == "sync \(name)"
-        ) { Task { await model.sync(name) } }
-      }
-      .padding(4)
+      header
+      summary(candidates: candidates.count)
       if !isFolded {
-        ForEach(row.links) { link in LinkRowView(link: link, model: model, actions: actions) }
-        LinkChips(library: name, candidates: candidates, model: model)
-          .padding(.leading, 20)
-          .padding(.horizontal, 4)
-          .padding(.vertical, 2)
+        ForEach(shownLinks) { link in
+          Hairline()
+          LinkRowView(link: link, model: model, actions: actions)
+        }
+        if hiddenLinks > 0 {
+          Hairline()
+          Button(action: open) {
+            HStack(spacing: 4) {
+              Text("Show \(hiddenLinks) more linked app\(hiddenLinks == 1 ? "" : "s") in the window")
+              Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).accessibilityHidden(true)
+            }
+            .font(DS.caption.weight(.medium))
+            .foregroundStyle(Color.accentColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .contentShape(.rect)
+          }
+          .buttonStyle(.plain)
+        }
+        Hairline()
+        linkFooter(candidates)
       }
     }
-    .card()
+    .cardSurface()
   }
 
   private var name: String { row.library.name }
+
+  private var header: some View {
+    HStack(spacing: 8) {
+      Button {
+        withAnimation(.snappy) { isFolded.toggle() }
+      } label: {
+        Image(systemName: isFolded ? "chevron.right" : "chevron.down")
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(DS.muted)
+          .frame(width: 14, height: 22)
+          .hitTarget(CGSize(width: 14, height: 22))
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(isFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
+      Button(action: open) {
+        Text(name).font(DS.headline).lineLimit(1).truncationMode(.middle)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .contentShape(.rect)
+      }
+      .buttonStyle(.plain)
+      .pointerStyle(.link)
+      .help("Show \(name) in the dryfit window")
+      Text("Auto-sync").font(DS.caption).foregroundStyle(DS.muted).accessibilityHidden(true)
+      Toggle("Auto-sync \(name)", isOn: watch)
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .labelsHidden()
+        .disabled(model.isBusy(.watch(name)))
+        .help(row.library.isWatched ? "Auto-sync is on: every change you save is synced" : "Auto-sync: sync every change you save")
+      IconButton(symbol: "arrow.clockwise", label: "Sync \(name) now", busy: syncing) { Task { await model.sync(name) } }
+    }
+    .padding(.horizontal, 12)
+    .padding(.top, 10)
+    .padding(.bottom, 2)
+  }
+
+  private var syncing: Bool {
+    model.isBusy(.sync(name)) || model.status?.jobs.running?.label == "sync \(name)"
+  }
+
+  private func summary(candidates: Int) -> some View {
+    HStack(spacing: 6) {
+      if row.links.isEmpty {
+        Chip(text: "Not linked")
+        if candidates > 0 { Text(candidates == 1 ? "1 app uses it" : "\(candidates) apps use it") }
+      } else {
+        let published = published
+        if published.built != nil { Chip(text: "DEV", kind: .dev) }
+        Text(published.version).font(DS.mono)
+        if let built = published.built { Text("· built \(built)") }
+        Text("· \(row.links.count) app\(row.links.count == 1 ? "" : "s")")
+        if syncing {
+          ProgressView().controlSize(.mini)
+          Text("Syncing…")
+        }
+      }
+    }
+    .font(DS.caption)
+    .foregroundStyle(DS.muted)
+    .lineLimit(1)
+    .padding(.leading, 34)
+    .padding(.trailing, 12)
+    .padding(.bottom, 10)
+  }
+
+  /// "1.4.1" and "14:32" for "1.4.1 · dev 14:32"; the time is nil for a release.
+  private var published: (version: String, built: String?) {
+    let described = row.library.published(timeZone: timeZone)
+    guard let range = described.range(of: " · dev ") else { return (described, nil) }
+    return (String(described[..<range.lowerBound]), String(described[range.upperBound...]))
+  }
+
+  /// What needs you first: a failed install, then one waiting on a dev server restart, then the rest.
+  private var sortedLinks: [DryfitAPI.Link] {
+    func rank(_ link: DryfitAPI.Link) -> Int {
+      if link.status == .failed { return 0 }
+      if link.status == .installed, model.restartNeeded.contains(link.consumer) { return 1 }
+      return 2
+    }
+    return row.links.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+  }
+
+  private var shownLinks: [DryfitAPI.Link] { Array(sortedLinks.prefix(Self.visibleLinks)) }
+  private var hiddenLinks: Int { max(0, row.links.count - Self.visibleLinks) }
+
+  /// A few apps are one click each; more than that is a search, so thirty never fill the menu.
+  @ViewBuilder private func linkFooter(_ candidates: [DiscoveredConsumer]) -> some View {
+    if picking {
+      LinkPicker(library: name, candidates: candidates, model: model) { picking = false }
+    } else if candidates.count > Self.visibleLinks {
+      HStack {
+        Button { picking = true } label: {
+          HStack(spacing: 5) {
+            Image(systemName: "plus").accessibilityHidden(true)
+            Text("Link an app…")
+            Chip(text: "\(candidates.count)")
+          }
+        }
+        .buttonStyle(ChipButtonStyle())
+        .help("Search the \(candidates.count) apps that use \(name) and link one")
+        Spacer()
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+    } else {
+      LinkChips(library: name, candidates: candidates, model: model)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+  }
 
   private var isFolded: Bool {
     get { folded.split(separator: "\n").contains { $0 == name } }
@@ -406,19 +504,6 @@ private struct LibraryCard: View {
       if newValue { names.append(name) }
       folded = names.joined(separator: "\n")
     }
-  }
-
-  private func subtitle(candidates: Int) -> String {
-    let count = row.links.count
-    guard count > 0 else {
-      switch candidates {
-      case 0: return "Not linked"
-      case 1: return "Not linked · 1 app uses it"
-      default: return "Not linked · \(candidates) apps use it"
-      }
-    }
-    let apps = count == 1 ? "1 app" : "\(count) apps"
-    return shortVersion(row.library.published(timeZone: timeZone)) + " · " + apps
   }
 
   private var watch: Binding<Bool> {
@@ -439,46 +524,65 @@ private struct LinkRowView: View {
   @Environment(\.timeZone) private var timeZone
 
   var body: some View {
-    HStack(spacing: 7) {
-      Image(systemName: link.status == .failed ? "xmark.circle" : link.status == .pending ? "clock" : "checkmark.circle")
-        .foregroundStyle(link.tint)
-        .accessibilityHidden(true)
-      Text(projectName(link.consumer)).lineLimit(1)
-      Spacer(minLength: 8)
-      if link.status == .failed, let failure = model.installFailure(in: link.consumer) {
-        Button("Failed · Show output") { actions.showFailures(failure.id) }
-          .buttonStyle(.plain)
-          .foregroundStyle(.red)
-          .lineLimit(1)
-      } else if link.status == .installed, model.restartNeeded.contains(link.consumer) {
-        // Orange marks it, as elsewhere for icons; the words stay primary to keep their contrast.
-        Button { model.restarted(link.consumer) } label: {
-          HStack(spacing: 3) {
-            Image(systemName: "arrow.clockwise").foregroundStyle(.orange).accessibilityHidden(true)
-            Text("Restart dev server")
-          }
-        }
-        .buttonStyle(.plain)
-        .lineLimit(1)
-        .help(restartHelp)
-      } else {
-        Text(link.status == .installed ? shortVersion(link.detail(timeZone: timeZone)) : link.detail(timeZone: timeZone))
-          .foregroundStyle(link.status == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(DS.muted))
-          .lineLimit(1)
+    HStack(spacing: 8) {
+      StatusIcon(condition: link.condition)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(projectName(link.consumer)).font(DS.rowTitle).lineLimit(1)
+        caption
       }
-      // A failed install is when putting the app back matters most, so it is offered there too.
-      IconButton(
-        symbol: "arrow.uturn.backward",
-        label: "Put \(projectName(link.consumer)) back on the release of \(link.library)",
-        busy: busy
-      ) { Task { await model.restore(link.consumer, library: link.library) } }
-      .disabled(!busy && model.isRestoring(link.consumer))
+      Spacer(minLength: 8)
+      if link.status == .failed {
+        if let failure = model.installFailure(in: link.consumer) {
+          Button("Show output") { actions.showFailures(failure.id) }.buttonStyle(.pill)
+        }
+        Button("Restore") { Task { await model.restore(link.consumer, library: link.library) } }
+          .buttonStyle(.pill(busy: busy))
+          .disabled(!busy && model.isRestoring(link.consumer))
+          .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
+      } else if needsRestart {
+        // The words say it; the amber is only a mark. Done clears the hint once the server is restarted.
+        Button("Done") { model.restarted(link.consumer) }.buttonStyle(.pill).help(restartHelp)
+      }
+      moreMenu
     }
-    .font(DS.body)
-    .padding(4)
-    .padding(.leading, 20)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
     .contentShape(.rect)
     .help(abbreviatedPath(link.consumer))
+  }
+
+  private var needsRestart: Bool { link.status == .installed && model.restartNeeded.contains(link.consumer) }
+
+  @ViewBuilder private var caption: some View {
+    if link.status == .failed {
+      Text("Install failed").font(DS.caption).foregroundStyle(DS.badText)
+    } else if needsRestart {
+      Text("Restart its dev server to load this build").font(DS.caption).foregroundStyle(DS.warnText).lineLimit(2)
+    } else if link.status == .installed {
+      let described = link.detail(timeZone: timeZone)
+      Text(described.contains(" · dev ") ? "Dev build · " + shortVersion(described).dropFirst(4) : described)
+        .font(DS.caption).foregroundStyle(DS.muted).lineLimit(1)
+    } else {
+      Text(link.detail(timeZone: timeZone)).font(DS.caption).foregroundStyle(DS.muted).lineLimit(1)
+    }
+  }
+
+  private var moreMenu: some View {
+    Menu {
+      Button("Put back on the release", systemImage: "arrow.uturn.backward") {
+        Task { await model.restore(link.consumer, library: link.library) }
+      }
+      .disabled(model.isRestoring(link.consumer))
+      Button("Show in Finder", systemImage: "folder") { revealInFinder(link.consumer) }
+    } label: {
+      Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold)).frame(width: 22, height: 22)
+    }
+    .menuStyle(.button)
+    .buttonStyle(.borderless)
+    .menuIndicator(.hidden)
+    .fixedSize()
+    .help("More for \(projectName(link.consumer))")
+    .accessibilityLabel("More for \(projectName(link.consumer))")
   }
 
   private var busy: Bool { model.isBusy(.restore(link.consumer, link.library)) }
@@ -488,49 +592,46 @@ private struct LinkRowView: View {
   }
 }
 
-/// Apps that use the library and are not linked to it, each linked with one click, then a menu for
-/// any other folder.
+/// A few apps that use the library and are not linked to it, each linked with one click, then a menu
+/// for any other folder. With more than a few the card offers a search instead (see `LinkPicker`).
 private struct LinkChips: View {
   let library: String
   let candidates: [DiscoveredConsumer]
   let model: MenuModel
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
+    FlowLayout(spacing: 6) {
       if !candidates.isEmpty {
-        Text("Also uses it:").font(DS.caption).foregroundStyle(DS.muted)
+        Text("Link to").font(DS.caption).foregroundStyle(DS.muted)
       }
-      FlowLayout(spacing: 4) {
-        ForEach(candidates) { consumer in
-          let busy = model.isBusy(.link(library, consumer.root))
-          Button {
-            Task { await model.link(library, into: consumer.root) }
-          } label: {
-            HStack(spacing: 3) {
-              if busy { ProgressView().controlSize(.mini) } else { Image(systemName: "link") }
-              Text(projectName(consumer.root))
-            }
-          }
-          .buttonStyle(ChipButtonStyle())
-          .disabled(busy)
-          .help("Install the dev build of \(library) into \(projectName(consumer.root))")
-        }
-        Menu {
-          LinkMenuItems(library: library, model: model)
+      ForEach(candidates) { consumer in
+        let busy = model.isBusy(.link(library, consumer.root))
+        Button {
+          Task { await model.link(library, into: consumer.root) }
         } label: {
-          Text(candidates.isEmpty ? "Link to app…" : "Other…")
-            .font(DS.caption)
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .contentShape(.rect)
+          HStack(spacing: 4) {
+            if busy { ProgressView().controlSize(.mini) } else { Image(systemName: "plus").accessibilityHidden(true) }
+            Text(projectName(consumer.root))
+          }
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(ChipButtonStyle())
+        .disabled(busy)
+        .help("Install the dev build of \(library) into \(projectName(consumer.root))")
       }
-      .padding(.top, 2)
+      Menu {
+        LinkMenuItems(library: library, model: model)
+      } label: {
+        Text(candidates.isEmpty ? "Link an app…" : "Other…")
+          .font(DS.caption)
+          .foregroundStyle(candidates.isEmpty ? Color.accentColor : DS.muted)
+          .padding(.horizontal, 7)
+          .padding(.vertical, 2)
+          .contentShape(.rect)
+      }
+      .menuStyle(.button)
+      .buttonStyle(.plain)
+      .menuIndicator(.hidden)
+      .fixedSize()
     }
   }
 }
@@ -541,14 +642,16 @@ private struct GroupRowView: View {
   let open: () -> Void
 
   var body: some View {
-    HStack(spacing: 7) {
-      Image(systemName: "square.stack.3d.up").foregroundStyle(DS.muted).accessibilityHidden(true)
+    HStack(spacing: 8) {
+      Image(systemName: "square.stack.3d.up").font(.system(size: 15)).foregroundStyle(DS.muted)
+        .frame(width: 22).accessibilityHidden(true)
       Button(action: open) {
-        TwoLine(title: group.name, caption: subtitle, titleFont: DS.medium)
+        TwoLine(title: group.name, caption: apps, titleFont: DS.rowTitle)
           .frame(maxWidth: .infinity, alignment: .leading)
           .contentShape(.rect)
       }
       .buttonStyle(.plain)
+      if differs { Chip(text: "Versions differ", kind: .warning) }
       PillMenu(busy: model.isBusy(.linkGroup(group.name))) {
         Section("Link into every app in \(group.name)") {
           ForEach(model.libraries) { row in
@@ -566,14 +669,14 @@ private struct GroupRowView: View {
       ) { Task { await model.restoreGroup(group.name) } }
     }
     .font(DS.body)
-    .padding(4)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .cardSurface()
   }
 
-  private var subtitle: String {
-    let apps = group.consumers.map(projectName).joined(separator: ", ")
-    let differs = model.status?.warnings.contains { $0.group == group.name } == true
-    return differs ? apps + " · versions differ" : apps
-  }
+  private var apps: String { group.consumers.map(projectName).joined(separator: ", ") }
+
+  private var differs: Bool { model.status?.warnings.contains { $0.group == group.name } == true }
 }
 
 /// Lays its views out in rows, wrapping to a new row when the next one does not fit.
@@ -727,7 +830,7 @@ private struct OutdatedBanner: View {
 
   var body: some View {
     HStack(alignment: .center, spacing: 8) {
-      Image(systemName: "arrow.up.circle").foregroundStyle(.orange).accessibilityHidden(true)
+      StatusIcon(condition: .update)
       TwoLine(
         title: "dryfit \(version) is older than this app",
         caption: "Update it to \(model.appVersion ?? "the newest version") to get what is new.", titleFont: DS.medium,
@@ -735,8 +838,9 @@ private struct OutdatedBanner: View {
       Spacer(minLength: 8)
       UpdateDryfitControl(model: model, prominent: false)
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 8)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .background(Color.orange.opacity(0.12))
   }
 }
 

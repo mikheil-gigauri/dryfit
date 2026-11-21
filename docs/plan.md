@@ -114,8 +114,6 @@ the guard, watch picking up a saved file, and a byte-for-byte group restore with
     - `doctor` checks that the launchd agent is loaded;
     - an Angular library without `dest` publishes ng-packagr's `dist`.
 - Known limits:
-  - On Linux, Node's recursive `fs.watch` also watches `node_modules` before dryfit filters it, which
-    can exhaust inotify on large repositories; Linux is an M5 platform, so a filtered walk lands then.
   - Two CLI versions used side by side restart the daemon on each switch, cancelling a running job.
   - Nx projects defined without `project.json`, or with inferred targets, fall back to an npm build
     script or to publishing the library root; `add --build/--publish-dir` covers them.
@@ -174,7 +172,7 @@ a refused commit, and a byte-for-byte restore. It passes locally and runs in CI.
   Publishing is always npm. Yarn 1 and binary-only `bun.lockb` projects are refused with a fix. The ADR 0006
   amendment has the details.
 - Linux: a `walk` watcher strategy, one watch per relevant folder, replaces recursive `fs.watch` there
-  (ADR 0012 amendment). It runs the same tests as the macOS strategy, but has not run on real inotify yet.
+  (ADR 0012 amendment). It runs the same tests as the macOS strategy, and CI runs them on Ubuntu, so they exercise real inotify.
 - Website in `apps/site` (ADR 0011 amendment): a landing page with a working diagram of the cycle,
   guides, a CLI reference generated from the CLI's help text, the ADRs, and the menu's real snapshots.
   Deployed to GitHub Pages by `site.yml`.

@@ -67,3 +67,19 @@ Building pnpm, Yarn and Bun against real registries changed the port and two of 
 The contract suite now installs with the scope pointed at a dead registry, so an adapter that ignores
 dryfit's registry fails, and checks that nothing in the project changes but the manifest and lockfile.
 An end-to-end test links one library into an npm, a pnpm, a Yarn and a Bun app at once.
+
+## Amendment · 2026-11-22 (incremental restore)
+
+`cleanInstall` takes `incremental`. Restore sets it when the consumer has a `node_modules`, and npm then runs
+`npm install` instead of `npm ci`: it follows the restored lockfile too, but changes only what differs from
+it (a dev build or two) where `npm ci` deletes `node_modules` and installs everything. On a sample app of 217
+top-level packages that took 0.35 s against 1.5 s, and the gap grows with the app; in an Nx workspace `npm ci`
+reinstalls the whole workspace. pnpm, Yarn and Bun already install incrementally and ignore the option.
+
+- **When the incremental install fails**, restore runs the full clean install, so the result is the one it
+  always was.
+- **A lockfile that the install rewrote goes back to the snapshot's bytes**, which keeps the restore exact
+  whichever install ran.
+- **Without a `node_modules`**, or without a lockfile, nothing changes.
+
+The contract suite checks the incremental restore against every real package manager.

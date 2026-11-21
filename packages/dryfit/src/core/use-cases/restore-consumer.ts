@@ -94,13 +94,28 @@ export async function restoreConsumer(deps: CoreDeps, input: RestoreConsumerInpu
     else await deps.fs.writeText(joinPath(consumer, lockfile), saved);
   }
 
-  const result = await runSafely(
-    deps,
-    adapter.cleanInstall({ cwd: consumer, hasLockfile: meta.lockfiles.length > 0 }),
-  );
+  // With node_modules in place, only what differs from the restored lockfile is installed; when that
+  // fails, or there is no node_modules, the full clean install runs, as it always did.
+  const spec = { cwd: consumer, hasLockfile: meta.lockfiles.length > 0 };
+  const full = adapter.cleanInstall(spec);
+  const fast = (await deps.fs.exists(joinPath(consumer, 'node_modules')))
+    ? adapter.cleanInstall({ ...spec, incremental: true })
+    : full;
+  let result = await runSafely(deps, fast);
+  if (result.exitCode !== 0 && JSON.stringify(fast) !== JSON.stringify(full)) {
+    result = await runSafely(deps, full);
+  }
   // Some managers (Yarn Berry) write a lockfile on every install; one the consumer never had goes.
+  // A lockfile that an incremental install rewrote goes back to the snapshot's bytes.
   for (const lockfile of adapter.lockfiles) {
-    if (!meta.lockfiles.includes(lockfile)) await deps.fs.remove(joinPath(consumer, lockfile));
+    if (!meta.lockfiles.includes(lockfile)) {
+      await deps.fs.remove(joinPath(consumer, lockfile));
+      continue;
+    }
+    const saved = await deps.fs.readText(joinPath(dir, lockfile));
+    if (saved !== undefined && (await deps.fs.readText(joinPath(consumer, lockfile))) !== saved) {
+      await deps.fs.writeText(joinPath(consumer, lockfile), saved);
+    }
   }
 
   const project = await loadProject(deps.fs, consumer, deps.integrations);

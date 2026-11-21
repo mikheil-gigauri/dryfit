@@ -17,11 +17,13 @@ public struct FailureView: View {
         // The system's source list: selection, ↑ and ↓, and type-to-select come with it.
         List(selection: $selection) {
           ForEach(failures) { failure in
-            VStack(alignment: .leading, spacing: 1) {
-              Text(failure.title).lineLimit(2)
-              Text(failure.date, format: .dateTime.hour().minute()).font(DS.caption).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 8) {
+              StatusIcon(condition: .failed, size: 13).padding(.top, 1)
+              VStack(alignment: .leading, spacing: 1) {
+                Text(failure.title).font(DS.rowTitle).lineLimit(2)
+                Text(failure.date, format: .dateTime.hour().minute()).font(DS.caption).foregroundStyle(.secondary)
+              }
             }
-            .font(DS.body)
             .padding(.vertical, 2)
             .tag(failure.id)
           }
@@ -53,8 +55,8 @@ private struct Detail: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
-        Image(systemName: "xmark.circle").foregroundStyle(.red).frame(width: 14).accessibilityHidden(true)
-        Text(failure.title).font(DS.sheetTitle).lineLimit(2)
+        StatusIcon(condition: .failed)
+        Text(failure.title).font(DS.headline).lineLimit(2)
         Spacer(minLength: 8)
         Button("Copy output") {
           NSPasteboard.general.clearContents()
@@ -65,9 +67,9 @@ private struct Detail: View {
       Text(when)
         .font(DS.caption)
         .foregroundStyle(DS.muted)
-        .padding(.leading, 22)
+        .padding(.leading, 26)
         .padding(.top, 2)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
       ScrollView([.vertical, .horizontal]) {
         Text(failure.detail.isEmpty ? "No output was captured." : failure.detail)
           .font(DS.mono)
@@ -81,10 +83,11 @@ private struct Detail: View {
       }
       // Opens on the output's first line, not wherever the content's centre falls.
       .defaultScrollAnchor(.topLeading)
-      .background(DS.neutralFill, in: .rect(cornerRadius: DS.radius))
+      .background(DS.groupFill, in: .rect(cornerRadius: DS.radius))
+      .overlay { RoundedRectangle(cornerRadius: DS.radius).strokeBorder(DS.cardBorder, lineWidth: 0.5) }
     }
-    .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(.horizontal, 20)
+    .padding(.vertical, 16)
   }
 
   /// "Today at 14:32".

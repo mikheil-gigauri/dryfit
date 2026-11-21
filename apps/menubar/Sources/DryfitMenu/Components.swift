@@ -94,14 +94,9 @@ struct ErrorBanner: View {
   let dismiss: () -> Void
 
   var body: some View {
-    HStack(alignment: .top, spacing: 7) {
-      Image(systemName: "xmark.circle").foregroundStyle(.red).accessibilityHidden(true)
-      Text(message).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
+    Callout(condition: .failed, message: message) {
       Button("Dismiss", action: dismiss).buttonStyle(.pill)
     }
-    .font(DS.body)
-    .card()
   }
 }
 

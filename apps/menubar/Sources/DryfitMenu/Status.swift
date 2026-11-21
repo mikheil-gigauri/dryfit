@@ -22,6 +22,8 @@ extension DS {
   static let releaseText = dynamic("dryfitReleaseText", light: NSColor(red: 0.07, green: 0.50, blue: 0.44, alpha: 1), dark: NSColor(red: 0.25, green: 0.82, blue: 0.71, alpha: 1))
   /// 13 pt semibold, for the title of a section of a page.
   static let section = Font.system(size: 13, weight: .semibold)
+  /// The name in a row: the same size as the row's other text, a weight heavier.
+  static let rowTitle = Font.system(size: 13, weight: .semibold)
 }
 
 /// How something is doing (named apart from the API's `Status` and `Health`). Each state has a symbol, a colour and a word, so colour is never the only cue.
@@ -153,5 +155,65 @@ struct SectionHeader<Trailing: View>: View {
 extension SectionHeader where Trailing == EmptyView {
   init(_ title: String, count: Int? = nil) {
     self.init(title: title, count: count) { EmptyView() }
+  }
+}
+
+/// A message that sits above what it is about: a failure, or a warning that needs an answer. It has a
+/// symbol and a title as well as its colour, an optional line under the title, and its actions.
+struct Callout<Actions: View>: View {
+  var condition = Condition.failed
+  var title: String? = nil
+  var message: String? = nil
+  /// The line under the title is output, such as a build error: monospaced and cut to two lines.
+  var output = false
+  let hasActions: Bool
+  @ViewBuilder var actions: Actions
+
+  init(
+    condition: Condition = .failed, title: String? = nil, message: String? = nil, output: Bool = false,
+    @ViewBuilder actions: () -> Actions
+  ) {
+    self.condition = condition
+    self.title = title
+    self.message = message
+    self.output = output
+    self.hasActions = true
+    self.actions = actions()
+  }
+
+  private var tint: Color { condition == .failed ? .red : condition == .ok ? .green : .orange }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 10) {
+      StatusIcon(condition: condition, size: 15).padding(.top, 1)
+      VStack(alignment: .leading, spacing: 3) {
+        if let title { Text(title).font(DS.rowTitle).fixedSize(horizontal: false, vertical: true) }
+        if let message {
+          Text(message)
+            .font(output ? DS.mono : (title == nil ? DS.body : DS.caption))
+            .foregroundStyle(title == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(DS.muted))
+            .lineLimit(output ? 2 : nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+        }
+        if hasActions { HStack(spacing: 6) { actions }.padding(.top, 6) }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(tint.opacity(0.09), in: .rect(cornerRadius: 12))
+    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(tint.opacity(0.28), lineWidth: 1) }
+  }
+}
+
+extension Callout where Actions == EmptyView {
+  init(condition: Condition = .failed, title: String? = nil, message: String? = nil, output: Bool = false) {
+    self.condition = condition
+    self.title = title
+    self.message = message
+    self.output = output
+    self.hasActions = false
+    self.actions = EmptyView()
   }
 }

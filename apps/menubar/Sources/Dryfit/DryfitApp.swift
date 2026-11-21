@@ -20,7 +20,9 @@ struct DryfitApp: App {
       MainWindow(model: delegate.model, navigation: delegate.navigation, actions: delegate.actions)
         .onAppear { UserDefaults.standard.set(true, forKey: Self.welcomedKey) }
     }
-    .defaultSize(width: 900, height: 580)
+    // No title bar: the window's own buttons float over the sidebar, as in the mockup.
+    .windowStyle(.hiddenTitleBar)
+    .defaultSize(width: 1000, height: 690)
     // Opens by itself only the first time, so a new user sees where to start.
     .defaultLaunchBehavior(UserDefaults.standard.bool(forKey: Self.welcomedKey) ? .suppressed : .presented)
     .restorationBehavior(.disabled)
@@ -30,7 +32,6 @@ struct DryfitApp: App {
           Button("Check for Updates…", action: checkForUpdates)
         }
       }
-      SidebarCommands()
       SettingsCommands(navigation: delegate.navigation)
       CommandGroup(replacing: .newItem) {
         Button("Add Library…") {

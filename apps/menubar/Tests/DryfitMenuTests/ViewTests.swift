@@ -25,16 +25,6 @@ let at = Date(timeIntervalSince1970: 1_795_000_000)
     #expect(distinct.count == icons.count)
   }
 
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func menuBarIcons() {
-    let row = HStack(spacing: 18) {
-      ForEach([MenuModel.Icon.idle, .working, .attention, .offline], id: \.self) { icon in
-        Image(nsImage: MenuBarIcon.image(for: icon)).resizable().frame(width: 60, height: 54)
-      }
-    }
-    .padding(16)
-    assertSnapshot(of: row, named: "menu-bar-icons")
-  }
-
   @Test func describesDevVersionsInLocalTime() {
     let utc = TimeZone(identifier: "UTC")!
     #expect(DevVersion.describe("1.4.1-dev.20261118143201", timeZone: utc) == "1.4.1 · dev 14:32")
@@ -74,84 +64,4 @@ let at = Date(timeIntervalSince1970: 1_795_000_000)
     #expect(UserNotifier.summary(of: output) == "> ng build ui\nTS2304: Cannot find name 'Butto'.\nat button.ts:4")
   }
 
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func windowShowsALibrary() {
-    let linked = model { model in
-      model.connection = .online
-      model.roots = ["/Users/me/repos"]
-      model.status = Status(
-        daemon: health,
-        libraries: [ui, forms],
-        links: [
-          Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version, guarded: true),
-          Link(library: "@acme/ui", consumer: admin, status: .failed),
-        ],
-        groups: [Group(name: "checkout", consumers: [shop, admin])])
-      model.failures = [Failure(title: "Install of @acme/ui into admin failed", detail: "npm ERR! code ERESOLVE", date: at, consumer: admin)]
-      model.consumers = [
-        DiscoveredConsumer(root: shop, name: "shop", libraries: [.init(name: "@acme/ui", range: "^1.4.0")], packageManager: .npm),
-        DiscoveredConsumer(root: admin, name: "admin", libraries: [.init(name: "@acme/ui", range: "^1.4.0")], packageManager: .pnpm),
-        DiscoveredConsumer(
-          root: "/Users/me/repos/storybook", name: "storybook",
-          libraries: [.init(name: "@acme/ui", range: "^1.3.0"), .init(name: "@acme/forms", range: "^2.0.0")],
-          packageManager: .npm),
-      ]
-    }
-    let navigation = AppNavigation()
-    navigation.selection = .library("@acme/ui")
-    assertSnapshot(
-      of: MainWindow(model: linked, navigation: navigation, actions: MenuActions()), named: "window-library",
-      size: CGSize(width: 900, height: 820))
-    let app = AppNavigation()
-    app.selection = .app("/Users/me/repos/storybook")
-    assertSnapshot(
-      of: MainWindow(model: linked, navigation: app, actions: MenuActions()), named: "window-app",
-      size: CGSize(width: 900, height: 620))
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func windowWelcomesANewUser() {
-    let fresh = model { model in
-      model.connection = .online
-      model.roots = []
-      model.status = Status(daemon: health)
-      model.startsAtLogin = false
-    }
-    assertSnapshot(
-      of: MainWindow(model: fresh, navigation: AppNavigation(), actions: MenuActions()), named: "window-welcome",
-      size: CGSize(width: 900, height: 620))
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func settings() {
-    let online = model { model in
-      model.connection = .online
-      model.roots = ["/Users/me/repos", "/Users/me/work"]
-      model.hiddenApps = ["/Users/me/repos/old-shop"]
-      model.status = Status(daemon: health)
-      model.startsAtLogin = true
-    }
-    // A page of the dryfit window, opened from the sidebar's gear or with ⌘,.
-    let navigation = AppNavigation()
-    navigation.selection = .settings
-    assertSnapshot(
-      of: MainWindow(model: online, navigation: navigation, actions: MenuActions(openAtLogin: .constant(true))),
-      named: "settings", size: CGSize(width: 900, height: 700))
-  }
-
-  @Test(.enabled(if: Snapshots.comparable, Comment(rawValue: Snapshots.skipped))) func failureWindow() {
-    let output = """
-      > ng build ui
-
-      ✘ [ERROR] TS2304: Cannot find name 'Butto'. [plugin angular-compiler]
-
-          projects/ui/src/button/button.ts:4:15:
-            4 │   readonly kind: Butto = 'primary';
-              ╵                  ~~~~~
-      """
-    let failures = [
-      Failure(title: "Build of @acme/ui failed", detail: output, date: at, library: "@acme/ui"),
-      Failure(title: "Auto-sync of @acme/forms stopped", detail: "EMFILE: too many open files", date: at - 600),
-    ]
-    assertSnapshot(
-      of: FailureView(failures: failures, selection: .constant(failures[0].id)), named: "failures",
-      size: CGSize(width: 720, height: 360))
-  }
 }

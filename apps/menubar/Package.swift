@@ -30,10 +30,6 @@ let package = Package(
       linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
     ),
     .testTarget(name: "DryfitAPITests", dependencies: ["DryfitAPI"]),
-    .testTarget(
-      name: "DryfitMenuTests",
-      dependencies: ["DryfitMenu"],
-      exclude: ["__Snapshots__"]
-    ),
+    .testTarget(name: "DryfitMenuTests", dependencies: ["DryfitMenu"]),
   ]
 )

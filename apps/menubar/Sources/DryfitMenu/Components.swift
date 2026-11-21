@@ -12,22 +12,6 @@ func revealInFinder(_ path: String) {
 }
 
 extension DryfitAPI.Link {
-  var symbol: String {
-    switch status {
-    case .installed: "checkmark.circle.fill"
-    case .pending: "clock"
-    case .failed: "xmark.octagon.fill"
-    }
-  }
-
-  var tint: Color {
-    switch status {
-    case .installed: .green
-    case .pending: DS.muted
-    case .failed: .red
-    }
-  }
-
   func detail(timeZone: TimeZone) -> String {
     switch status {
     case .failed: "Install failed"
@@ -86,22 +70,4 @@ struct LinkMenuItems: View {
     Button("Choose App…") { Task { await model.chooseAppAndLink(library) } }
     Button("Look Again") { Task { await model.discoverConsumers() } }
   }
-}
-
-/// A failure to act on, with a way to dismiss it.
-struct ErrorBanner: View {
-  let message: String
-  let dismiss: () -> Void
-
-  var body: some View {
-    Callout(condition: .failed, message: message) {
-      Button("Dismiss", action: dismiss).buttonStyle(.pill)
-    }
-  }
-}
-
-extension Color {
-  /// dryfit's brand colours, from the app icon: magenta marks a dev build, teal a release.
-  static let devBuild = Color(red: 1, green: 0.373, blue: 0.659)
-  static let release = Color(red: 0.184, green: 0.682, blue: 0.592)
 }

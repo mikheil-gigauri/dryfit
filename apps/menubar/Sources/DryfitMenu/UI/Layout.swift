@@ -59,18 +59,64 @@ struct Columns: Layout {
   }
 }
 
-/// A row of a card (`.tr`): its columns, with the mockup's padding.
+/// The widest each `auto` column of a table's rows wants to be, so every row of it is as wide there.
+/// A CSS grid does this on its own; rows stacked in a stack each size their own, and the columns drift.
+@Observable final class ColumnSizes {
+  private var widths: [String: [UUID: CGFloat]] = [:]
+
+  func width(_ column: String) -> CGFloat? { widths[column]?.values.max() }
+
+  func set(_ column: String, row: UUID, to width: CGFloat) {
+    if widths[column]?[row] != width { widths[column, default: [:]][row] = width }
+  }
+
+  func remove(row: UUID) {
+    for column in widths.keys { widths[column]?[row] = nil }
+  }
+}
+
+/// A row of a card (`.tr`): its columns, with the mockup's padding. Rows of one `Tbl` that share their
+/// tracks share the width of their `auto` columns, the header's included.
 struct Tr<Content: View>: View {
   let tracks: [Columns.Track]
   var vertical: CGFloat = 9
   var horizontal: CGFloat = 14
   @ViewBuilder var content: Content
+  @Environment(ColumnSizes.self) private var sizes: ColumnSizes?
+  @State private var row = UUID()
 
   var body: some View {
-    Columns(tracks: tracks) { content }
-      .padding(.horizontal, horizontal)
-      .padding(.vertical, vertical)
-      .frame(maxWidth: .infinity, alignment: .leading)
+    Columns(tracks: tracks) {
+      Group(subviews: content) { subviews in
+        ForEach(Array(subviews.enumerated()), id: \.element.id) { index, subview in
+          if index < tracks.count, case .auto = tracks[index] {
+            SharedCell(column: "\(tracks)/\(index)", row: row, sizes: sizes, trailing: index == tracks.count - 1) { subview }
+          } else {
+            subview
+          }
+        }
+      }
+    }
+    .padding(.horizontal, horizontal)
+    .padding(.vertical, vertical)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .onDisappear { sizes?.remove(row: row) }
+  }
+}
+
+/// A cell of an `auto` column: reports the width it wants and takes the widest of its column.
+private struct SharedCell<Content: View>: View {
+  let column: String
+  let row: UUID
+  let sizes: ColumnSizes?
+  let trailing: Bool
+  @ViewBuilder var content: Content
+
+  var body: some View {
+    content
+      .fixedSize(horizontal: true, vertical: false)
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sizes?.set(column, row: row, to: $0) }
+      .frame(minWidth: sizes?.width(column), alignment: trailing ? .trailing : .leading)
   }
 }
 
@@ -85,6 +131,7 @@ struct Cell<Content: View>: View {
 struct Tbl<Content: View>: View {
   var fill: Color = Theme.card
   @ViewBuilder var content: Content
+  @State private var sizes = ColumnSizes()
 
   var body: some View {
     VStack(spacing: 0) {
@@ -95,6 +142,7 @@ struct Tbl<Content: View>: View {
         }
       }
     }
+    .environment(sizes)
     .frame(maxWidth: .infinity)
     .background(fill)
     .clipShape(.rect(cornerRadius: Theme.cardRadius))

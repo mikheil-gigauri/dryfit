@@ -86,6 +86,47 @@ describe('detectLibraryBuild', () => {
       });
     });
 
+    it('is built by Nx when a plugin in nx.json infers its build target from a config file', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/nx.json': json({ plugins: ['@nx/js/typescript', { plugin: '@nx/vite/plugin' }] }),
+        '/ws/libs/core/package.json': json({ name: '@acme/core' }),
+        '/ws/libs/core/tsconfig.lib.json': '{}',
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/core')).toEqual({
+        kind: 'nx',
+        build: { command: '/ws/node_modules/.bin/nx', args: ['build', '@acme/core'] },
+        publishDir: '/ws/libs/core',
+      });
+    });
+
+    it('builds with the target name a plugin is configured to give it', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/nx.json': json({
+          plugins: [{ plugin: '@nx/vite/plugin', options: { buildTargetName: 'vite:build' } }],
+        }),
+        '/ws/libs/ui/package.json': json({ name: '@acme/ui' }),
+        '/ws/libs/ui/vite.config.ts': '',
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/ui')).toMatchObject({
+        kind: 'nx',
+        build: { args: ['vite:build', '@acme/ui'] },
+      });
+    });
+
+    it('ignores a plugin when the library has none of its config files', async () => {
+      const fs = InMemoryFileSystem.with({
+        ...workspace,
+        '/ws/nx.json': json({ plugins: ['@nx/js/typescript'] }),
+        '/ws/libs/tokens/package.json': json({ name: '@acme/tokens' }),
+      });
+
+      expect(await detectLibraryBuild(fs, '/ws/libs/tokens')).toMatchObject({ kind: 'none' });
+    });
+
     it('keeps the npm script when the workspace has no nx installed', async () => {
       const fs = InMemoryFileSystem.with({
         '/ws/nx.json': '{}',

@@ -13,21 +13,22 @@ public struct SettingsView: View {
   }
 
   public var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        if let error = model.actionError {
-          ErrorBanner(message: error) { model.dismissActionError() }.padding(.top, 12)
-        }
+    PinnedPage {
+      Text("Settings").font(DS.title).frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 44)
+    } content: {
+      if let error = model.actionError {
+        ErrorBanner(message: error) { model.dismissActionError() }
+      }
 
-        SectionLabel("Project folders")
+      section("Project folders", footnote: "dryfit looks in these folders for apps that use your libraries.") {
         HairlineGroup {
           if model.connection != .online {
             GroupRow { Text("Start dryfit to change these.").foregroundStyle(DS.muted) }
           } else if let roots = model.roots, !roots.isEmpty {
             ForEach(roots, id: \.self) { root in
               GroupRow {
-                Image(systemName: "folder").accessibilityHidden(true)
-                Text(abbreviatedPath(root)).lineLimit(1).truncationMode(.head)
+                Image(systemName: "folder").foregroundStyle(DS.muted).accessibilityHidden(true)
+                Text(abbreviatedPath(root)).font(DS.mono).lineLimit(1).truncationMode(.head)
                 Spacer(minLength: 8)
                 Button {
                   Task {
@@ -39,7 +40,7 @@ public struct SettingsView: View {
                   }
                 } label: {
                   // The row's own height, but a 24 pt target.
-                  Image(systemName: "minus.circle").foregroundStyle(DS.muted).hitTarget(CGSize(width: 14, height: 14))
+                  Image(systemName: "minus.circle").foregroundStyle(DS.muted).hitTarget(CGSize(width: 16, height: 16))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.isBusy(.roots))
@@ -57,15 +58,15 @@ public struct SettingsView: View {
               .disabled(model.connection != .online)
           }
         }
-        Footnote("dryfit looks in these folders for apps that use your libraries.")
+      }
 
-        if let hidden = model.hiddenApps, !hidden.isEmpty, model.connection == .online {
-          SectionLabel("Hidden apps")
+      if let hidden = model.hiddenApps, !hidden.isEmpty, model.connection == .online {
+        section("Hidden apps", count: hidden.count) {
           HairlineGroup {
             ForEach(hidden, id: \.self) { root in
               GroupRow {
-                Image(systemName: "eye.slash").accessibilityHidden(true)
-                Text(projectName(root)).lineLimit(1)
+                Image(systemName: "eye.slash").foregroundStyle(DS.muted).accessibilityHidden(true)
+                TwoLine(title: projectName(root), caption: abbreviatedPath(root)).layoutPriority(1)
                 Spacer(minLength: 8)
                 Button("Show") { Task { await model.showApp(root) } }
                   .buttonStyle(.pill(busy: model.isBusy(.hide(root))))
@@ -75,39 +76,44 @@ public struct SettingsView: View {
             }
           }
         }
+      }
 
-        SectionLabel("dryfit service")
+      section("dryfit service") {
         HairlineGroup {
           GroupRow {
             Text("Status")
             Spacer(minLength: 8)
+            StatusDot(color: statusColor)
             Text(status).foregroundStyle(DS.muted)
           }
           if let outdated = model.outdatedVersion {
             GroupRow {
-              Image(systemName: "arrow.up.circle").foregroundStyle(.orange).accessibilityHidden(true)
+              StatusIcon(condition: .update)
               Text("dryfit \(outdated) is older than this app")
               Spacer(minLength: 8)
               UpdateDryfitControl(model: model, prominent: false)
             }
+            .background(Color.orange.opacity(0.1))
           }
           if let registry = model.status?.daemon.registryUrl, model.connection == .online {
             GroupRow {
               Text("Registry")
               Spacer(minLength: 8)
-              Text(registry).foregroundStyle(DS.muted).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+              Text(registry).font(DS.mono).foregroundStyle(DS.muted).lineLimit(1).truncationMode(.middle).textSelection(.enabled)
             }
           }
           if let startsAtLogin = model.startsAtLogin {
             GroupRow {
-              Text("Start dryfit at login")
+              TwoLine(title: "Start dryfit at login", caption: "So auto-sync is on again after a restart.")
               Spacer(minLength: 8)
               if model.isBusy(.startAtLogin) { ProgressView().controlSize(.mini) }
               Toggle(
                 "Start dryfit at login",
                 isOn: Binding(get: { startsAtLogin }, set: { on in Task { await model.setStartAtLogin(on) } })
               )
-              .toggleStyle(.mini)
+              .toggleStyle(.switch)
+              .controlSize(.small)
+              .labelsHidden()
               .disabled(model.isBusy(.startAtLogin))
             }
             .help("Start dryfit when you log in, so auto-sync is on again after a restart")
@@ -119,7 +125,7 @@ public struct SettingsView: View {
             case .online:
               Button("Stop") { Task { await model.stopDaemon() } }.buttonStyle(.pill(busy: model.isBusy(.stop)))
             case .offline:
-              Button("Start") { Task { await model.startDaemon() } }.buttonStyle(.pill)
+              Button("Start") { Task { await model.startDaemon() } }.buttonStyle(.primaryPill)
             case .starting:
               Button("Start") {}.buttonStyle(.pill(busy: true))
             default:
@@ -127,20 +133,25 @@ public struct SettingsView: View {
             }
           }
         }
+      }
 
-        if let openAtLogin = actions.openAtLogin {
-          SectionLabel("General")
+      if let openAtLogin = actions.openAtLogin {
+        section("General") {
           HairlineGroup {
             GroupRow {
-              Text("Open at login")
+              Text("Open this app at login")
               Spacer()
               LiveToggle(title: "Open at login", source: openAtLogin)
             }
           }
         }
+      }
 
-        if let checkForUpdates = actions.checkForUpdates {
-          SectionLabel("Updates")
+      if let checkForUpdates = actions.checkForUpdates {
+        section(
+          "Updates",
+          footnote: "dryfit looks for a new version once a day and, when installing automatically, replaces itself while you're not using it."
+        ) {
           HairlineGroup {
             if let installAutomatically = actions.installUpdatesAutomatically {
               GroupRow {
@@ -154,16 +165,31 @@ public struct SettingsView: View {
               Button("Check now", action: checkForUpdates).buttonStyle(.pill)
             }
           }
-          Footnote("dryfit looks for a new version once a day and, when installing automatically, replaces itself while you're not using it.")
         }
       }
-      .font(DS.body)
-      .padding(.horizontal, 18)
-      .padding(.bottom, 16)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
     // The window's toolbar carries the page's name; the page has no actions of its own.
     .navigationTitle("Settings")
+  }
+
+  /// A titled card of settings, with a note under it when it needs one.
+  private func section<Body: View>(
+    _ title: String, count: Int? = nil, footnote: String? = nil, @ViewBuilder content: () -> Body
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      SectionHeader(title, count: count)
+      content()
+      if let footnote { Footnote(footnote) }
+    }
+  }
+
+  private var statusColor: Color {
+    switch model.connection {
+    case .online: .green
+    case .connecting, .starting: .yellow
+    case .offline: Color.primary.opacity(0.25)
+    case .incompatible: .orange
+    }
   }
 
   private var status: String {

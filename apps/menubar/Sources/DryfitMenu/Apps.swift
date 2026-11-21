@@ -161,42 +161,42 @@ struct AppDetail: View {
   }
 
   private func content(_ app: AppSummary) -> some View {
-    Page {
-      Button("Show in Finder", systemImage: "folder") { revealInFinder(app.root) }
-        .help("Show \(app.name) in Finder")
-      if !app.linked.isEmpty {
-        Button {
-          Task { await model.restore(app.root) }
-        } label: {
-          Label("Restore all", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon)
+    let failed = app.linked.filter { $0.status == .failed }
+    return PinnedPage {
+      PinnedHeader(symbol: "macwindow", tint: .purple, title: app.name, subtitle: summary(app)) {
+        if let manager = app.packageManager { Chip(text: manager) }
+      } actions: {
+        IconButton(symbol: "folder", label: "Show \(app.name) in Finder", busy: false) { revealInFinder(app.root) }
+        if !app.linked.isEmpty {
+          Button { Task { await model.restore(app.root) } } label: {
+            Label("Restore all", systemImage: "arrow.uturn.backward")
+          }
+          .buttonStyle(.pill)
+          .disabled(model.isBusy(.restore(app.root, nil)) || app.libraries.contains { model.isBusy(.restore(app.root, $0.library)) })
+          .help("Put every library in \(app.name) back on its release")
         }
-        .disabled(model.isBusy(.restore(app.root, nil)) || app.libraries.contains { model.isBusy(.restore(app.root, $0.library)) })
-        .help("Put every library in \(app.name) back on its release")
       }
     } content: {
       if let error = model.actionError {
-        ErrorBanner(message: error) { model.dismissActionError() }.padding(.bottom, 12)
+        ErrorBanner(message: error) { model.dismissActionError() }
       }
-      PageHeader(symbol: "macwindow", tint: .purple, title: app.name, subtitle: summary(app)) {
-        if let manager = app.packageManager { Badge(text: manager) }
-      }
-      SectionLabel("Libraries")
-      HairlineGroup {
-        ForEach(app.libraries) { entry in
-          AppLibraryRow(app: app, entry: entry, model: model, actions: actions)
+      ForEach(failed) { link in InstallFailedCallout(link: link, model: model, actions: actions) }
+      VStack(alignment: .leading, spacing: 0) {
+        SectionHeader("Libraries", count: app.libraries.count)
+        HairlineGroup {
+          ForEach(app.libraries) { entry in
+            AppLibraryRow(app: app, entry: entry, model: model)
+          }
         }
+        Footnote("Your libraries that \(app.name) depends on. Restore puts that library's release back and keeps the others linked.")
       }
-      Footnote("Your libraries that \(app.name) depends on. Restore puts that library's release back and keeps the others linked.")
-      Divider().padding(.top, 18).padding(.bottom, 10)
-      HStack(spacing: 8) {
-        Button("Hide \(app.name)") { Task { await model.hideApp(app.root, navigation: navigation) } }
-          .buttonStyle(.borderless)
-          .disabled(!app.linked.isEmpty || model.isBusy(.hide(app.root)))
-        Text(app.linked.isEmpty
+      DangerCard(
+        title: "Hide \(app.name)",
+        detail: app.linked.isEmpty
           ? "dryfit stops listing it. Settings can show it again."
-          : "Restore it first: dryfit only hides apps on released versions.")
-          .font(DS.caption).foregroundStyle(DS.muted)
-      }
+          : "Restore it first: dryfit only hides apps on released versions.",
+        button: "Hide", enabled: app.linked.isEmpty && !model.isBusy(.hide(app.root))
+      ) { Task { await model.hideApp(app.root, navigation: navigation) } }
     }
   }
 
@@ -213,27 +213,23 @@ private struct AppLibraryRow: View {
   let app: AppSummary
   let entry: AppSummary.Entry
   let model: MenuModel
-  let actions: MenuActions
   @Environment(\.timeZone) private var timeZone
 
   var body: some View {
     GroupRow {
-      VStack(alignment: .leading, spacing: 1) {
-        Text(entry.library).lineLimit(1)
-        if let link = entry.link, link.status == .failed, let failure = model.installFailure(in: app.root) {
-          Button("Install failed · Show output") { actions.showFailures(failure.id) }
-            .buttonStyle(.plain)
-            .foregroundStyle(.red)
-            .font(DS.caption)
-        } else {
-          Text(detail)
-            .font(DS.caption)
-            .foregroundStyle(entry.link?.status == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(DS.muted))
-            .lineLimit(1)
-        }
+      if let link = entry.link {
+        StatusIcon(condition: link.condition)
+      } else {
+        Image(systemName: "shippingbox").foregroundStyle(DS.muted).frame(width: 18).accessibilityHidden(true)
       }
-      Spacer(minLength: 8)
-      BuildChip(dev: entry.link != nil)
+      TwoLine(title: entry.library, caption: detail, titleFont: DS.rowTitle)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+      if entry.link?.status == .failed {
+        Chip(text: "Install failed", kind: .failed)
+      } else {
+        BuildChip(dev: entry.link != nil)
+      }
       if entry.link == nil {
         Button("Link") { Task { await model.link(entry.library, into: app.root) } }
           .buttonStyle(.accentPill(busy: model.isBusy(.link(entry.library, app.root))))

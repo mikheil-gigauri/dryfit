@@ -86,8 +86,8 @@ struct GroupRow<Content: View>: View {
   var body: some View {
     HStack(spacing: 8) { content }
       .font(DS.body)
-      .padding(.horizontal, 10)
-      .padding(.vertical, 7)
+      .padding(.horizontal, 14)
+      .padding(.vertical, 9)
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 }

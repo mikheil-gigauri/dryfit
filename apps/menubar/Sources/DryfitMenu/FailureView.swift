@@ -5,10 +5,15 @@ import SwiftUI
 public struct FailureView: View {
   let failures: [Failure]
   @Binding var selection: Failure.ID?
+  /// Brings the dryfit window up on a library's page.
+  let openLibrary: (String) -> Void
 
-  public init(failures: [Failure], selection: Binding<Failure.ID?>) {
+  public init(
+    failures: [Failure], selection: Binding<Failure.ID?>, openLibrary: @escaping (String) -> Void = { _ in }
+  ) {
     self.failures = failures
     self._selection = selection
+    self.openLibrary = openLibrary
   }
 
   public var body: some View {
@@ -34,7 +39,7 @@ public struct FailureView: View {
         Divider()
       }
       if let failure = selected {
-        Detail(failure: failure)
+        Detail(failure: failure, openLibrary: openLibrary)
       } else {
         Text("No failures").foregroundStyle(DS.muted).frame(maxWidth: .infinity, maxHeight: .infinity)
       }
@@ -50,6 +55,7 @@ public struct FailureView: View {
 
 private struct Detail: View {
   let failure: Failure
+  let openLibrary: (String) -> Void
   @Environment(\.timeZone) private var timeZone
 
   var body: some View {
@@ -63,6 +69,9 @@ private struct Detail: View {
           NSPasteboard.general.setString(failure.detail, forType: .string)
         }
         .buttonStyle(.pill)
+        if let library = failure.library {
+          Button("Open library") { openLibrary(library) }.buttonStyle(.pill)
+        }
       }
       Text(subtitle)
         .font(DS.caption)
@@ -109,13 +118,15 @@ private struct Detail: View {
 public final class FailureWindow {
   private var window: NSWindow?
   private let model: MenuModel
+  private let openLibrary: (String) -> Void
 
-  public init(model: MenuModel) {
+  public init(model: MenuModel, openLibrary: @escaping (String) -> Void = { _ in }) {
     self.model = model
+    self.openLibrary = openLibrary
   }
 
   public func show(selecting id: Failure.ID?) {
-    let root = FailureWindowRoot(model: model, initial: id)
+    let root = FailureWindowRoot(model: model, initial: id, openLibrary: openLibrary)
     if let window {
       window.contentView = NSHostingView(rootView: root)
     } else {
@@ -135,14 +146,16 @@ public final class FailureWindow {
 
 private struct FailureWindowRoot: View {
   let model: MenuModel
+  let openLibrary: (String) -> Void
   @State private var selection: Failure.ID?
 
-  init(model: MenuModel, initial: Failure.ID?) {
+  init(model: MenuModel, initial: Failure.ID?, openLibrary: @escaping (String) -> Void) {
     self.model = model
+    self.openLibrary = openLibrary
     self._selection = State(initialValue: initial)
   }
 
   var body: some View {
-    FailureView(failures: model.failures, selection: $selection)
+    FailureView(failures: model.failures, selection: $selection, openLibrary: openLibrary)
   }
 }

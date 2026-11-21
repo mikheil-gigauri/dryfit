@@ -649,7 +649,8 @@ private struct GroupDetail: View {
           condition: .warning, title: "\(warning.library) differs between these apps",
           message: warning.versions
             .map { "\(projectName($0.consumer)) is on \(DevVersion.describe($0.version, timeZone: timeZone))" }
-            .joined(separator: " · ")
+            .joined(separator: " · "),
+          actionsAtEnd: true
         ) {
           Button("Link \(warning.library) into both") { Task { await model.linkGroup(name, library: warning.library) } }
             .buttonStyle(.pill(busy: model.isBusy(.linkGroup(name))))

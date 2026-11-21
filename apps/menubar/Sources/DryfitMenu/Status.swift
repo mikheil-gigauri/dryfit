@@ -167,12 +167,15 @@ struct Callout<Actions: View>: View {
   /// The line under the title is output, such as a build error: monospaced and cut to two lines.
   var output = false
   let hasActions: Bool
+  /// The actions sit at the end of the title's row, not under the text.
+  var actionsAtEnd = false
   @ViewBuilder var actions: Actions
 
   init(
     condition: Condition = .failed, title: String? = nil, message: String? = nil, output: Bool = false,
-    @ViewBuilder actions: () -> Actions
+    actionsAtEnd: Bool = false, @ViewBuilder actions: () -> Actions
   ) {
+    self.actionsAtEnd = actionsAtEnd
     self.condition = condition
     self.title = title
     self.message = message
@@ -196,9 +199,10 @@ struct Callout<Actions: View>: View {
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
         }
-        if hasActions { HStack(spacing: 6) { actions }.padding(.top, 6) }
+        if hasActions && !actionsAtEnd { HStack(spacing: 6) { actions }.padding(.top, 6) }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
+      if hasActions && actionsAtEnd { HStack(spacing: 6) { actions } }
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)

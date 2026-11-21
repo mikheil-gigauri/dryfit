@@ -443,10 +443,10 @@ struct PinnedHeader<Chips: View, Actions: View>: View {
         HStack(spacing: 6) {
           if let mono { Text(mono).font(DS.mono) }
           if mono != nil && !subtitle.isEmpty { Text("·") }
-          Text(subtitle).font(DS.body)
+          Text(subtitle).font(DS.body).fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(DS.muted)
-        .lineLimit(1)
+        .lineLimit(2)
       }
       Spacer(minLength: 12)
       HStack(spacing: 10) { actions }

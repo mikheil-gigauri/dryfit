@@ -205,8 +205,10 @@ struct GroupEditor: View {
             Button("Add app…") { Task { await addFolder() } }.buttonStyle(.pill)
           }
         }
+        .frame(maxWidth: .infinity)
       }
       .scrollBounceBehavior(.basedOnSize)
+      .scrollIndicators(.hidden)
       .frame(maxHeight: 320)
       .fixedSize(horizontal: false, vertical: true)
       if let saveError {

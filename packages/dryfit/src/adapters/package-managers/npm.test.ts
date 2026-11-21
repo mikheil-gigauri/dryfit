@@ -89,6 +89,23 @@ describe('npm adapter', () => {
       });
     });
 
+    it('installs only what differs from the lockfile when node_modules may be reused', () => {
+      expect(npm.cleanInstall({ cwd: '/apps/shop', hasLockfile: true, incremental: true }).args).toEqual([
+        'install',
+        '--no-audit',
+        '--no-fund',
+      ]);
+    });
+
+    it('never creates a lockfile, even when node_modules may be reused', () => {
+      expect(npm.cleanInstall({ cwd: '/apps/shop', hasLockfile: false, incremental: true }).args).toEqual([
+        'install',
+        '--no-package-lock',
+        '--no-audit',
+        '--no-fund',
+      ]);
+    });
+
     it('falls back to a plain install when there is no lockfile', () => {
       expect(npm.cleanInstall({ cwd: '/apps/shop', hasLockfile: false }).args).toEqual([
         'install',

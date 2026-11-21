@@ -50,7 +50,63 @@ describe('restoreConsumer', () => {
 
     expect(result).toEqual({ ok: true });
     expect(manifestAndLock(fs.snapshot(SHOP), SHOP)).toEqual(manifestAndLock(original, SHOP));
-    expect(process.lines(SHOP).at(-1)).toBe('npm ci --no-audit --no-fund');
+    expect(process.lines(SHOP).at(-1)).toBe('npm install --no-audit --no-fund');
+  });
+
+  describe('choosing the install', () => {
+    // The scenario's app has node_modules, as a developer's does.
+    it('installs only what differs from the lockfile when node_modules is there', async () => {
+      const { deps, process } = await linkedAndSynced([SHOP]);
+
+      expect(await restoreConsumer(deps, { consumer: SHOP })).toEqual({ ok: true });
+
+      expect(process.lines(SHOP).at(-1)).toBe('npm install --no-audit --no-fund');
+    });
+
+    it('installs everything from the lockfile when there is no node_modules', async () => {
+      const { deps, fs, process } = await linkedAndSynced([SHOP]);
+      await fs.remove(`${SHOP}/node_modules`);
+
+      expect(await restoreConsumer(deps, { consumer: SHOP })).toEqual({ ok: true });
+
+      expect(process.lines(SHOP).at(-1)).toBe('npm ci --no-audit --no-fund');
+    });
+
+    it('runs the full clean install when the incremental one fails', async () => {
+      const { deps, process } = await linkedAndSynced([SHOP]);
+      process.on('npm install --no-audit', failed('npm error ERESOLVE'));
+
+      expect(await restoreConsumer(deps, { consumer: SHOP })).toEqual({ ok: true });
+
+      expect(process.lines(SHOP).slice(-2)).toEqual([
+        'npm install --no-audit --no-fund',
+        'npm ci --no-audit --no-fund',
+      ]);
+    });
+
+    it('reports the full install’s failure when both fail', async () => {
+      const { deps, process } = await linkedAndSynced([SHOP]);
+      process.on('npm install --no-audit', failed('npm error first'));
+      process.on('npm ci', failed('npm error second'));
+
+      expect(await restoreConsumer(deps, { consumer: SHOP })).toEqual({
+        ok: false,
+        output: 'npm error second',
+      });
+    });
+
+    it('puts a lockfile the install rewrote back to the snapshot, byte for byte', async () => {
+      const original = createScenario().fs.snapshot(SHOP);
+      const { deps, fs, process } = await linkedAndSynced([SHOP]);
+      process.on('npm install --no-audit', async (spec) => {
+        await fs.writeText(`${spec.cwd}/package-lock.json`, '{"lockfileVersion": 3, "rewritten": true}\n');
+        return { exitCode: 0, stdout: '', stderr: '' };
+      });
+
+      await restoreConsumer(deps, { consumer: SHOP });
+
+      expect(manifestAndLock(fs.snapshot(SHOP), SHOP)).toEqual(manifestAndLock(original, SHOP));
+    });
   });
 
   it('restores a consumer whose install failed half-way (M1 exit check)', async () => {
@@ -104,9 +160,11 @@ describe('restoreConsumer', () => {
   it('finishes cleaning up and reports the error when npm cannot even start', async () => {
     const { deps, fs, process, store, events } = await linkedAndSynced([SHOP]);
     await fs.writeText(`${SHOP}/.angular/cache/stale.js`, 'dev build');
-    process.on('npm ci', () => {
+    const cannotStart = () => {
       throw new Error('spawn npm ENOENT');
-    });
+    };
+    process.on('npm install --no-audit', cannotStart);
+    process.on('npm ci', cannotStart);
 
     const result = await restoreConsumer(deps, { consumer: SHOP });
 
@@ -189,6 +247,7 @@ describe('restoreConsumer', () => {
   it('still restores the files when the clean install fails, and reports it', async () => {
     const original = createScenario().fs.snapshot(SHOP);
     const { deps, fs, process, store, events } = await linkedAndSynced([SHOP]);
+    process.on('npm install --no-audit', failed('npm error network ETIMEDOUT'));
     process.on('npm ci', failed('npm error network ETIMEDOUT'));
 
     const result = await restoreConsumer(deps, { consumer: SHOP });
@@ -280,6 +339,7 @@ describe('restoreConsumer', () => {
 
     it('leaves the others pending, for the next sync, when the clean install fails', async () => {
       const { deps, process, store } = await bothLinked();
+      process.on('npm install --no-audit', async () => failed('npm error network'));
       process.on('npm ci', async () => failed('npm error network'));
 
       const result = await restoreConsumer(deps, { consumer: SHOP, library: '@acme/ui' });

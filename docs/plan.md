@@ -116,7 +116,6 @@ the guard, watch picking up a saved file, and a byte-for-byte group restore with
 - Known limits:
   - On Linux, Node's recursive `fs.watch` also watches `node_modules` before dryfit filters it, which
     can exhaust inotify on large repositories; Linux is an M5 platform, so a filtered walk lands then.
-  - Two CLI versions used side by side restart the daemon on each switch, cancelling a running job.
   - Nx projects defined without `project.json`, or with inferred targets, fall back to an npm build
     script or to publishing the library root; `add --build/--publish-dir` covers them.
 - Not covered by automated tests: restarting a daemon of another version (it needs two builds), and

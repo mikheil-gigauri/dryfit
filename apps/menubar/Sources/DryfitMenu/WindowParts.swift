@@ -1,8 +1,9 @@
 import DryfitAPI
+import AppKit
 import SwiftUI
 
-/// A failed install, first among what a page shows: what failed, the first line of why, and the two
-/// ways on: read the output, or put the app back.
+/// A failed install, first among what a page shows: what failed and when, the output that says why, and
+/// the two ways on: copy the output, or put the app back.
 struct InstallFailedCallout: View {
   let link: DryfitAPI.Link
   let model: MenuModel
@@ -11,24 +12,84 @@ struct InstallFailedCallout: View {
   var body: some View {
     let failure = model.installFailure(in: link.consumer)
     let busy = model.isBusy(.restore(link.consumer, link.library))
-    Callout(
-      condition: .failed, title: "Install into \(projectName(link.consumer)) failed",
-      message: failure?.detail.split(whereSeparator: \.isNewline).first.map(String.init), output: true
-    ) {
-      if let failure { Button("Show output") { actions.showFailures(failure.id) }.buttonStyle(.pill) }
-      Button("Restore \(projectName(link.consumer))") {
-        Task { await model.restore(link.consumer, library: link.library) }
+    let manager = model.consumers.first { $0.root == link.consumer }?.packageManager.name
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(alignment: .top, spacing: 10) {
+        StatusIcon(condition: .failed, size: 18)
+        VStack(alignment: .leading, spacing: 1) {
+          Text("Install into \(projectName(link.consumer)) failed").font(DS.rowTitle)
+          if let subtitle = subtitle(manager: manager, failure: failure) {
+            Text(subtitle).font(DS.caption).foregroundStyle(DS.muted)
+          }
+        }
+        Spacer(minLength: 8)
+        if let failure {
+          Button("Copy output") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(failure.detail, forType: .string)
+          }
+          .buttonStyle(.pill)
+        }
+        Button("Restore \(projectName(link.consumer))") {
+          Task { await model.restore(link.consumer, library: link.library) }
+        }
+        .buttonStyle(.pill(busy: busy))
+        .disabled(!busy && model.isRestoring(link.consumer))
+        .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
       }
-      .buttonStyle(.pill(busy: busy))
-      .disabled(!busy && model.isRestoring(link.consumer))
-      .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
+      if let failure, !failure.detail.isEmpty {
+        Text(failure.detail.split(whereSeparator: \.isNewline).prefix(6).joined(separator: "\n"))
+          .font(DS.mono)
+          .lineSpacing(3)
+          .textSelection(.enabled)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 9)
+          .background(DS.groupFill, in: .rect(cornerRadius: DS.buttonRadius))
+      }
     }
+    .padding(12)
+    .background(Color.red.opacity(0.09), in: .rect(cornerRadius: 12))
+    .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Color.red.opacity(0.28), lineWidth: 1) }
+  }
+
+  /// "pnpm · 2 minutes ago".
+  private func subtitle(manager: String?, failure: Failure?) -> String? {
+    let when = failure.map { RelativeDateTimeFormatter().localizedString(for: $0.date, relativeTo: Date()) }
+    let parts = [manager, when].compactMap { $0 }
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+  }
+}
+
+/// The column names above a list of linked apps; the widths are the rows'.
+struct LinkedAppsHeader: View {
+  var body: some View {
+    HStack(spacing: 8) {
+      Color.clear.frame(width: 18, height: 1)
+      Text("App").frame(maxWidth: .infinity, alignment: .leading)
+      Text("Status").frame(width: LinkedAppRow.statusWidth, alignment: .leading)
+      Text("Version").frame(width: LinkedAppRow.versionWidth, alignment: .leading)
+      Color.clear.frame(width: LinkedAppRow.actionWidth, height: 1)
+    }
+    .font(.system(size: 11, weight: .semibold))
+    .textCase(.uppercase)
+    .tracking(0.4)
+    .foregroundStyle(DS.muted)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 6)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(DS.neutralFill.opacity(0.5))
+    .accessibilityHidden(true)
   }
 }
 
 /// An app linked to a library: how it is doing, what it runs, and the way back to the release. The
 /// status and version sit in columns so a long list reads down.
 struct LinkedAppRow: View {
+  static let statusWidth: CGFloat = 124
+  static let versionWidth: CGFloat = 104
+  static let actionWidth: CGFloat = 66
+
   let link: DryfitAPI.Link
   let model: MenuModel
   @Environment(\.timeZone) private var timeZone
@@ -39,11 +100,12 @@ struct LinkedAppRow: View {
       TwoLine(title: projectName(link.consumer), caption: caption)
         .frame(maxWidth: .infinity, alignment: .leading)
         .layoutPriority(1)
-      statusChip.frame(width: 124, alignment: .leading)
+      statusChip.frame(width: Self.statusWidth, alignment: .leading)
       Text(version).font(DS.mono).foregroundStyle(link.status == .installed ? Color.primary : DS.muted)
-        .lineLimit(1).frame(width: 104, alignment: .leading)
+        .lineLimit(1).frame(width: Self.versionWidth, alignment: .leading)
       Button("Restore") { Task { await model.restore(link.consumer, library: link.library) } }
         .buttonStyle(.pill(busy: busy))
+        .frame(width: Self.actionWidth, alignment: .trailing)
         .disabled(!busy && model.isRestoring(link.consumer))
         .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
     }

@@ -64,7 +64,7 @@ private struct Detail: View {
         }
         .buttonStyle(.pill)
       }
-      Text(when)
+      Text(subtitle)
         .font(DS.caption)
         .foregroundStyle(DS.muted)
         .padding(.leading, 26)
@@ -83,11 +83,15 @@ private struct Detail: View {
       }
       // Opens on the output's first line, not wherever the content's centre falls.
       .defaultScrollAnchor(.topLeading)
-      .background(DS.groupFill, in: .rect(cornerRadius: DS.radius))
-      .overlay { RoundedRectangle(cornerRadius: DS.radius).strokeBorder(DS.cardBorder, lineWidth: 0.5) }
+      .background(DS.neutralFill, in: .rect(cornerRadius: DS.radius))
     }
     .padding(.horizontal, 20)
     .padding(.vertical, 16)
+  }
+
+  /// "Today at 14:32 · ~/repos/ui-lib".
+  private var subtitle: String {
+    [when, failure.consumer.map(abbreviatedPath)].compactMap { $0 }.joined(separator: " · ")
   }
 
   /// "Today at 14:32".

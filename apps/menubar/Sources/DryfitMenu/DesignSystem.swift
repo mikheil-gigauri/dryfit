@@ -427,6 +427,8 @@ struct PinnedHeader<Chips: View, Actions: View>: View {
   let tint: Color
   let title: String
   let subtitle: String
+  /// A version, set in the monospaced face before the subtitle.
+  var mono: String? = nil
   @ViewBuilder var chips: Chips
   @ViewBuilder var actions: Actions
 
@@ -438,7 +440,13 @@ struct PinnedHeader<Chips: View, Actions: View>: View {
           Text(title).font(DS.title).textSelection(.enabled).lineLimit(1)
           chips
         }
-        Text(subtitle).font(DS.body).foregroundStyle(DS.muted).lineLimit(1)
+        HStack(spacing: 6) {
+          if let mono { Text(mono).font(DS.mono) }
+          if mono != nil && !subtitle.isEmpty { Text("·") }
+          Text(subtitle).font(DS.body)
+        }
+        .foregroundStyle(DS.muted)
+        .lineLimit(1)
       }
       Spacer(minLength: 12)
       HStack(spacing: 10) { actions }

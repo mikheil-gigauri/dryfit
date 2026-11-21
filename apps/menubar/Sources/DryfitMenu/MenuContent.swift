@@ -135,7 +135,7 @@ private struct Header: View {
       let failures = model.failures.count
       if failures > 0 { return failures == 1 ? "Running · 1 needs attention" : "Running · \(failures) need attention" }
       if model.activity != nil { return "Running · syncing" }
-      return model.status.map { "Running, version \($0.daemon.version)" } ?? "Running"
+      return "Running"
     case .connecting: return "Looking for dryfit…"
     case .starting: return "Starting…"
     case .offline: return "Not running"
@@ -157,15 +157,7 @@ private struct Footer: View {
       if let activity = model.activity {
         ProgressView().controlSize(.mini)
         Text(activity).lineLimit(1).truncationMode(.middle)
-      } else if model.connection == .online {
-        // With no library yet, the page above already offers the same button.
-        if !model.libraries.isEmpty {
-          Button(action: addLibrary) {
-            Label("Add library…", systemImage: "plus").labelStyle(PillLabelStyle()).contentShape(.rect)
-          }
-          .buttonStyle(.plain)
-        }
-      } else {
+      } else if model.connection != .online {
         Button("Open log", action: actions.openLog).buttonStyle(.plain)
       }
       Spacer(minLength: 8)
@@ -393,7 +385,7 @@ private struct LibraryCard: View {
         withAnimation(.snappy) { isFolded.toggle() }
       } label: {
         Image(systemName: isFolded ? "chevron.right" : "chevron.down")
-          .font(.system(size: 11, weight: .semibold))
+          .font(.system(size: 9, weight: .bold))
           .foregroundStyle(DS.muted)
           .frame(width: 14, height: 22)
           .hitTarget(CGSize(width: 14, height: 22))
@@ -415,7 +407,6 @@ private struct LibraryCard: View {
         .labelsHidden()
         .disabled(model.isBusy(.watch(name)))
         .help(row.library.isWatched ? "Auto-sync is on: every change you save is synced" : "Auto-sync: sync every change you save")
-      IconButton(symbol: "arrow.clockwise", label: "Sync \(name) now", busy: syncing) { Task { await model.sync(name) } }
     }
     .padding(.horizontal, 12)
     .padding(.top, 10)
@@ -624,8 +615,9 @@ private struct LinkChips: View {
         Text(candidates.isEmpty ? "Link an app…" : "Other…")
           .font(DS.caption)
           .foregroundStyle(candidates.isEmpty ? Color.accentColor : DS.muted)
-          .padding(.horizontal, 7)
-          .padding(.vertical, 2)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 3)
+          .background(candidates.isEmpty ? Color.clear : DS.neutralFill, in: .rect(cornerRadius: DS.buttonRadius))
           .contentShape(.rect)
       }
       .menuStyle(.button)
@@ -663,10 +655,6 @@ private struct GroupRowView: View {
       }
       .disabled(model.libraries.isEmpty)
       .help("Link a library into every app in \(group.name)")
-      IconButton(
-        symbol: "arrow.uturn.backward", label: "Put every app in \(group.name) back on released versions",
-        busy: model.isBusy(.restoreGroup(group.name))
-      ) { Task { await model.restoreGroup(group.name) } }
     }
     .font(DS.body)
     .padding(.horizontal, 12)

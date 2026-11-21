@@ -20,7 +20,7 @@ public struct SettingsView: View {
         ErrorBanner(message: error) { model.dismissActionError() }
       }
 
-      section("Project folders", footnote: "dryfit looks in these folders for apps that use your libraries.") {
+      section("Project folders") {
         HairlineGroup {
           if model.connection != .online {
             GroupRow { Text("Start dryfit to change these.").foregroundStyle(DS.muted) }
@@ -40,7 +40,7 @@ public struct SettingsView: View {
                   }
                 } label: {
                   // The row's own height, but a 24 pt target.
-                  Image(systemName: "minus.circle").foregroundStyle(DS.muted).hitTarget(CGSize(width: 16, height: 16))
+                  Image(systemName: "minus").foregroundStyle(DS.muted).hitTarget(CGSize(width: 16, height: 16))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.isBusy(.roots))
@@ -52,6 +52,7 @@ public struct SettingsView: View {
             GroupRow { Text("No folders yet. Add the folders that hold your apps.").foregroundStyle(DS.muted) }
           }
           GroupRow {
+            Text("dryfit looks in these folders for apps that use your libraries.").font(DS.caption).foregroundStyle(DS.muted)
             Spacer()
             Button("Add folders…") { Task { await model.chooseProjectFolders() } }
               .buttonStyle(.pill(busy: model.isBusy(.roots)))
@@ -65,8 +66,7 @@ public struct SettingsView: View {
           HairlineGroup {
             ForEach(hidden, id: \.self) { root in
               GroupRow {
-                Image(systemName: "eye.slash").foregroundStyle(DS.muted).accessibilityHidden(true)
-                TwoLine(title: projectName(root), caption: abbreviatedPath(root)).layoutPriority(1)
+                TwoLine(title: projectName(root), caption: abbreviatedPath(root), titleFont: DS.rowTitle).layoutPriority(1)
                 Spacer(minLength: 8)
                 Button("Show") { Task { await model.showApp(root) } }
                   .buttonStyle(.pill(busy: model.isBusy(.hide(root))))
@@ -104,7 +104,7 @@ public struct SettingsView: View {
           }
           if let startsAtLogin = model.startsAtLogin {
             GroupRow {
-              TwoLine(title: "Start dryfit at login", caption: "So auto-sync is on again after a restart.")
+              TwoLine(title: "Start dryfit at login", caption: "Auto-sync is on again after a restart.")
               Spacer(minLength: 8)
               if model.isBusy(.startAtLogin) { ProgressView().controlSize(.mini) }
               Toggle(

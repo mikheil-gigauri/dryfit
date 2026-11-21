@@ -1,17 +1,18 @@
 import SwiftUI
 
-/// The measurements the app is drawn to, taken from its wireframes: 12 pt text with 11 pt captions,
-/// 0.5 pt hairlines, 8 pt corners on groups and buttons, 10 pt on cards. The system draws the glass
-/// (the menu bar panel, the sidebar, the toolbar, sheets); everything inside is content, drawn flat.
+/// The measurements the app is drawn to: 13 pt text with 12 pt captions, 0.5 pt hairlines, 10 pt
+/// corners on groups and cards, 8 pt on buttons. The system draws the glass (the menu bar panel, the
+/// sidebar, the toolbar, sheets); everything inside is content, drawn flat. Status is never colour
+/// alone: a symbol or a word always goes with it.
 enum DS {
-  static let body = Font.system(size: 12)
-  static let medium = Font.system(size: 12, weight: .medium)
-  static let caption = Font.system(size: 11)
-  static let small = Font.system(size: 10)
-  static let mono = Font.system(size: 11, design: .monospaced)
-  static let headline = Font.system(size: 13, weight: .medium)
-  static let sheetTitle = Font.system(size: 14, weight: .medium)
-  static let title = Font.system(size: 18, weight: .medium)
+  static let body = Font.system(size: 13)
+  static let medium = Font.system(size: 13, weight: .medium)
+  static let caption = Font.system(size: 12)
+  static let small = Font.system(size: 11)
+  static let mono = Font.system(size: 12, design: .monospaced)
+  static let headline = Font.system(size: 14, weight: .semibold)
+  static let sheetTitle = Font.system(size: 15, weight: .semibold)
+  static let title = Font.system(size: 21, weight: .semibold)
 
   /// The default hairline, between rows.
   static let hairline = Color.primary.opacity(0.1)
@@ -21,10 +22,16 @@ enum DS {
   static let neutralFill = Color.primary.opacity(0.06)
   static let accentTint = Color.accentColor.opacity(0.14)
   /// Behind a group of rows or a card, so it reads as a surface on the window or the menu's glass.
-  static let groupFill = Color.primary.opacity(0.06)
+  static let groupFill = Color(
+    nsColor: NSColor(name: "dryfitCard") { appearance in
+      appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.07) : NSColor(white: 1, alpha: 0.85)
+    })
+  /// The edge of a card: a fill alone disappears on a light window.
+  static let cardBorder = Color.primary.opacity(0.08)
   /// Behind a button, a step brighter than the group it sits on.
   static let buttonFill = Color.primary.opacity(0.1)
-  static let radius: CGFloat = 8
+  static let radius: CGFloat = 10
+  static let buttonRadius: CGFloat = 8
   /// Muted text and symbols: captions, paths, values beside a label. The system's secondary grey
   /// measures 3.8:1 on a group in light mode, under the 4.5:1 that 11 pt text needs; this one is
   /// about 4.8:1 there and the system's own 55% in dark mode, and stronger with Increase Contrast.
@@ -62,8 +69,12 @@ struct HairlineGroup<Content: View>: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(DS.groupFill, in: .rect(cornerRadius: DS.radius))
     .overlay {
-      // Only a warning group is outlined, in its colour; others are a fill, as macOS draws them.
-      if let border { RoundedRectangle(cornerRadius: DS.radius).strokeBorder(border, lineWidth: 1) }
+      // A warning group is outlined in its colour; the others in a hairline, so a light card still has an edge.
+      if let border {
+        RoundedRectangle(cornerRadius: DS.radius).strokeBorder(border, lineWidth: 1)
+      } else {
+        RoundedRectangle(cornerRadius: DS.radius).strokeBorder(DS.cardBorder, lineWidth: 0.5)
+      }
     }
   }
 }
@@ -224,10 +235,10 @@ struct IconButton: View {
   var body: some View {
     Button(action: action) {
       ZStack {
-        Image(systemName: symbol).opacity(busy ? 0 : 1)
+        Image(systemName: symbol).font(.system(size: 13, weight: .medium)).opacity(busy ? 0 : 1)
         if busy { ProgressView().controlSize(.mini) }
       }
-      .frame(width: 18, height: 18)
+      .frame(width: 22, height: 22)
     }
     .buttonStyle(.borderless)
     .disabled(busy)
@@ -298,22 +309,15 @@ struct Tile: View {
 /// A small grey tag for a fact such as the package manager.
 struct Badge: View {
   let text: String
-  var tint: Color? = nil
+  var kind = Chip.Kind.neutral
 
-  var body: some View {
-    Text(text)
-      .font(DS.small)
-      .padding(.horizontal, 6)
-      .padding(.vertical, 1)
-      .foregroundStyle(tint.map(AnyShapeStyle.init) ?? AnyShapeStyle(DS.muted))
-      .background(tint.map { $0.opacity(0.15) } ?? DS.neutralFill, in: .rect(cornerRadius: 5))
-  }
+  var body: some View { Chip(text: text, kind: kind) }
 }
 
 /// Says whether an app runs a library's dev build or its released version.
 struct BuildChip: View {
   let dev: Bool
-  var body: some View { Badge(text: dev ? "Dev build" : "Release", tint: dev ? .purple : nil) }
+  var body: some View { Chip(text: dev ? "Dev build" : "Release", kind: dev ? .dev : .release) }
 }
 
 extension View {
@@ -321,7 +325,8 @@ extension View {
   func card() -> some View {
     padding(.horizontal, 8)
       .padding(.vertical, 6)
-      .background(DS.groupFill, in: .rect(cornerRadius: 10))
+      .background(DS.groupFill, in: .rect(cornerRadius: DS.radius))
+      .overlay { RoundedRectangle(cornerRadius: DS.radius).strokeBorder(DS.cardBorder, lineWidth: 0.5) }
   }
 }
 
@@ -376,6 +381,68 @@ struct PageHeader<Accessory: View>: View {
 extension PageHeader where Accessory == EmptyView {
   init(symbol: String, tint: Color, title: String, subtitle: String) {
     self.init(symbol: symbol, tint: tint, title: title, subtitle: subtitle) { EmptyView() }
+  }
+}
+
+/// A page whose header stays where it is while the rest scrolls under it: the dryfit window's pages,
+/// which can be long (a library used by thirty apps). A hairline appears under the header once content
+/// has moved beneath it, so the edge reads as an edge only when something is there.
+struct PinnedPage<Header: View, Content: View>: View {
+  @ViewBuilder var header: Header
+  @ViewBuilder var content: Content
+  @State private var scrolled = false
+
+  var body: some View {
+    VStack(spacing: 0) {
+      header
+        .padding(.horizontal, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background)
+        .overlay(alignment: .bottom) { Hairline().opacity(scrolled ? 1 : 0) }
+        .zIndex(1)
+      ScrollView {
+        VStack(alignment: .leading, spacing: 22) { content }
+          .font(DS.body)
+          .padding(.horizontal, 24)
+          .padding(.top, 18)
+          .padding(.bottom, 28)
+          // Rows stay close to the name they belong to, however wide the window.
+          .frame(maxWidth: 760, alignment: .leading)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 1 } action: { _, now in
+        withAnimation(.easeOut(duration: 0.15)) { scrolled = now }
+      }
+    }
+    // The page's name is in its header, not repeated in the toolbar.
+    .toolbar(removing: .title)
+  }
+}
+
+/// The pinned header of a page: its tile, name and chips, a line about it, and its actions at the far end.
+struct PinnedHeader<Chips: View, Actions: View>: View {
+  let symbol: String
+  let tint: Color
+  let title: String
+  let subtitle: String
+  @ViewBuilder var chips: Chips
+  @ViewBuilder var actions: Actions
+
+  var body: some View {
+    HStack(spacing: 14) {
+      Tile(symbol: symbol, tint: tint, size: 44)
+      VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 8) {
+          Text(title).font(DS.title).textSelection(.enabled).lineLimit(1)
+          chips
+        }
+        Text(subtitle).font(DS.body).foregroundStyle(DS.muted).lineLimit(1)
+      }
+      Spacer(minLength: 12)
+      HStack(spacing: 10) { actions }
+    }
   }
 }
 

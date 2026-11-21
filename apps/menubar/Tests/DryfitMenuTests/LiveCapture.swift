@@ -187,6 +187,13 @@ extension LiveScenes {
         $0.consumers = consumers(manyNames) + consumers(manyNames, using: "@acme/forms")
         $0.failures = [Failure(title: "Install of @acme/ui into admin failed", detail: "npm ERR!", date: at, consumer: "/Users/me/code/admin")]
       }),
+      widget("m-libs", online {
+        let libraries = (1...20).map { Library(name: "@acme/lib-\($0)", root: "/Users/me/repos/lib-\($0)", publishDir: "/Users/me/repos/lib-\($0)") }
+        let links = libraries.flatMap { lib in
+          [admin, shop, "/Users/me/code/billing"].map { Link(library: lib.name, consumer: $0, status: .installed, installedVersion: version) }
+        }
+        $0.status = Status(daemon: health, libraries: libraries, links: links, groups: [Group(name: "checkout", consumers: [shop, admin])])
+      }),
       widget("m-empty", model { $0.connection = .online; $0.status = Status(daemon: health) }),
       widget("m-old", versioned { $0.connection = .online; $0.consumers = consumers(["storybook"]) + consumers(["storybook"], using: "@acme/forms"); $0.status = Status(daemon: Health(name: "dryfit", version: "1.2.0", apiVersion: 1, pid: 42, registryUrl: "http://127.0.0.1:4874/", startedAt: "2026-11-18T09:00:00.000Z"), libraries: [ui, forms], links: [Link(library: "@acme/ui", consumer: admin, status: .installed, installedVersion: version), Link(library: "@acme/ui", consumer: shop, status: .installed, installedVersion: version)], groups: [Group(name: "checkout", consumers: [shop, admin])]) }),
       widget("m-drift", online { $0.driftedRestore = RestoreRequest(consumer: shop, library: "@acme/ui") }),

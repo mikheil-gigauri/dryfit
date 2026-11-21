@@ -42,6 +42,27 @@ export async function detectLibraryBuild(fs: FileSystem, root: string): Promise<
     };
   }
 
+  // An Nx project without project.json: its targets come from package.json scripts or from plugins that
+  // infer them, so Nx itself is asked to build it, by the name Nx gives such a project.
+  const inferredRoot = project ? undefined : await findUp(fs, libraryRoot, 'nx.json');
+  if (inferredRoot !== undefined && relativeInside(inferredRoot, libraryRoot)) {
+    const nx = joinPath(inferredRoot, 'node_modules/.bin/nx');
+    const nxField = isRecord(manifest.nx) ? manifest.nx : {};
+    const targets = isRecord(nxField.targets) ? nxField.targets : {};
+    const scripts = isRecord(manifest.scripts) ? manifest.scripts : {};
+    // Only a library with a sign that it builds, and a workspace with nx installed, is handed to Nx.
+    const builds = typeof scripts.build === 'string' || 'build' in targets || ngPackage !== undefined;
+    if (builds && (await fs.exists(nx))) {
+      const name = typeof nxField.name === 'string' ? nxField.name : String(manifest.name);
+      const projectRoot = relativeInside(inferredRoot, libraryRoot) ?? '';
+      return {
+        kind: 'nx',
+        build: { command: nx, args: ['build', name] },
+        publishDir: ngDest ?? nxOutputPath(nxField, inferredRoot, projectRoot) ?? libraryRoot,
+      };
+    }
+  }
+
   const angularRoot = await findUp(fs, libraryRoot, 'angular.json');
   if (angularRoot !== undefined) {
     const workspace = await readJson(fs, joinPath(angularRoot, 'angular.json'));

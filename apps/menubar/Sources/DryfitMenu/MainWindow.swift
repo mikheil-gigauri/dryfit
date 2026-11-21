@@ -111,13 +111,21 @@ public struct MainWindow: View {
 private struct Sidebar: View {
   let model: MenuModel
   @Bindable var navigation: AppNavigation
+  /// Narrows the three lists by name: with thirty apps, scrolling is the slow way to one.
+  @State private var filter = ""
+  @AppStorage("sidebarAppsExpanded") private var appsExpanded = true
+
+  private var filtering: Bool { !filter.trimmingCharacters(in: .whitespaces).isEmpty }
+  private func matches(_ name: String) -> Bool { !filtering || name.localizedStandardContains(filter) }
 
   var body: some View {
-    let apps = model.apps
-    let groups = model.groups
+    let allApps = model.apps
+    let apps = allApps.filter { matches($0.name) }
+    let groups = model.groups.filter { matches($0.name) }
+    let libraries = model.libraries.filter { matches($0.library.name) }
     List(selection: $navigation.selection) {
       Section("Libraries") {
-        ForEach(model.libraries) { row in
+        ForEach(libraries) { row in
           let failed = row.links.contains { $0.status == .failed }
           SidebarLabel(
             name: row.library.name, symbol: failed ? "exclamationmark.triangle.fill" : "shippingbox",
@@ -129,13 +137,13 @@ private struct Sidebar: View {
               moveItems(.libraries, row.id, model.libraries.map(\.id))
             }
         }
-        .onMove { model.move(.libraries, ids: model.libraries.map(\.id), from: $0, to: $1) }
+        .onMove(perform: filtering ? nil : { model.move(.libraries, ids: model.libraries.map(\.id), from: $0, to: $1) })
         if model.libraries.isEmpty, model.connection == .online {
           Text("No libraries yet").foregroundStyle(DS.muted).selectionDisabled()
         }
       }
       if !apps.isEmpty {
-        Section("Apps") {
+        Section("Apps", isExpanded: $appsExpanded) {
           ForEach(apps) { app in
             SidebarLabel(
               name: app.name, symbol: app.hasFailedInstall ? "exclamationmark.triangle.fill" : "macwindow",
@@ -149,7 +157,7 @@ private struct Sidebar: View {
                 moveItems(.apps, app.root, apps.map(\.root))
               }
           }
-          .onMove { model.move(.apps, ids: apps.map(\.root), from: $0, to: $1) }
+          .onMove(perform: filtering ? nil : { model.move(.apps, ids: allApps.map(\.root), from: $0, to: $1) })
         }
       }
       if !groups.isEmpty {
@@ -161,11 +169,12 @@ private struct Sidebar: View {
               .tag(SidebarItem.group(group.name))
               .contextMenu { moveItems(.groups, group.name, groups.map(\.name)) }
           }
-          .onMove { model.move(.groups, ids: groups.map(\.name), from: $0, to: $1) }
+          .onMove(perform: filtering ? nil : { model.move(.groups, ids: groups.map(\.name), from: $0, to: $1) })
         }
       }
     }
     .listStyle(.sidebar)
+    .searchable(text: $filter, placement: .sidebar, prompt: "Filter")
     .environment(\.sidebarRowSize, .small)
     .font(DS.body)
     .safeAreaBar(edge: .bottom, spacing: 0) { bottomBar }
@@ -304,57 +313,66 @@ private struct WelcomeView: View {
   let navigation: AppNavigation
 
   var body: some View {
-    welcome.toolbar(removing: .title)
+    PinnedPage {
+      PinnedHeader(
+        symbol: "shippingbox", tint: .release, title: "Test your library in your apps",
+        subtitle: "Set up in a few steps. You can come back to this any time."
+      ) {
+        EmptyView()
+      } actions: {
+        EmptyView()
+      }
+    } content: {
+      Text("dryfit publishes each change to a private registry on this Mac and installs it into your apps the way a release would. When you're done, it puts every app back exactly as it was.")
+        .foregroundStyle(DS.muted)
+        .fixedSize(horizontal: false, vertical: true)
+      steps
+      if let error = model.actionError {
+        ErrorBanner(message: error) { model.dismissActionError() }
+      }
+    }
   }
 
-  private var welcome: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 0) {
-        Tile(symbol: "shippingbox", tint: .teal)
-        Text("Test your library in your apps").font(DS.title).padding(.top, 10).padding(.bottom, 4)
-        Text("dryfit publishes each change to a private registry on this Mac and installs it into your apps the way a release would. When you're done, it puts every app back exactly as it was.")
-          .foregroundStyle(DS.muted)
-          .fixedSize(horizontal: false, vertical: true)
-          .padding(.bottom, 12)
-        Step(number: 1, title: "Tell dryfit where your apps live", detail: rootsDetail, done: !(model.roots ?? []).isEmpty) {
-          Button("Add folders…") { Task { await model.chooseProjectFolders() } }.buttonStyle(.pill)
-        }
-        Step(
-          number: 2, title: "Add a library you're working on",
-          detail: "Choose its folder. dryfit works out how to build it.", done: !model.libraries.isEmpty
-        ) {
+  /// The first step not done yet is the one to do: it takes the primary button and a tint.
+  private var steps: some View {
+    let foldersDone = !(model.roots ?? []).isEmpty
+    let libraryDone = !model.libraries.isEmpty
+    let linkedDone = !(model.status?.links.isEmpty ?? true)
+    let loginDone = model.startsAtLogin ?? true
+    let current = [foldersDone, libraryDone, linkedDone, loginDone].firstIndex(of: false)
+    return HairlineGroup {
+      Step(number: 1, title: "Tell dryfit where your apps live", detail: rootsDetail, done: foldersDone, current: current == 0) {
+        Button(foldersDone ? "Change…" : "Add folders…") { Task { await model.chooseProjectFolders() } }
+          .buttonStyle(current == 0 ? .primaryPill : .pill)
+      }
+      Step(
+        number: 2, title: "Add a library you're working on",
+        detail: "Choose its folder. dryfit works out how to build it.", done: libraryDone, current: current == 1
+      ) {
+        if !libraryDone {
           Button("Add library…") { Task { await model.chooseLibraryFolder(navigation: navigation) } }
-            .buttonStyle(.primaryPill)
-        }
-        Step(
-          number: 3, title: "Link it to an app",
-          detail: "dryfit lists the apps that use your library under Apps. Link one, then sync, or turn on Auto-sync.",
-          done: !(model.status?.links.isEmpty ?? true)
-        ) {
-          EmptyView()
-        }
-        if let startsAtLogin = model.startsAtLogin {
-          Step(
-            number: 4, title: "Keep it running",
-            detail: "Start dryfit when you log in, so auto-sync is on again after a restart. Opening this app at login does not start it.",
-            done: startsAtLogin
-          ) {
-            if !startsAtLogin {
-              Button("Start at login") { Task { await model.setStartAtLogin(true) } }
-                .buttonStyle(.pill(busy: model.isBusy(.startAtLogin)))
-            }
-          }
-        }
-        if let error = model.actionError {
-          ErrorBanner(message: error) { model.dismissActionError() }.padding(.top, 12)
+            .buttonStyle(current == 1 ? .primaryPill : .pill)
         }
       }
-      .font(DS.body)
-      .frame(maxWidth: 560, alignment: .leading)
-      .padding(.horizontal, 18)
-      .padding(.top, 8)
-      .padding(.bottom, 16)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      Step(
+        number: 3, title: "Link it to an app",
+        detail: "dryfit lists the apps that use your library under Apps. Link one, then sync, or turn on Auto-sync.",
+        done: linkedDone, current: current == 2
+      ) {
+        EmptyView()
+      }
+      if let startsAtLogin = model.startsAtLogin {
+        Step(
+          number: 4, title: "Keep it running",
+          detail: "Start dryfit when you log in, so auto-sync is on again after a restart. Opening this app at login does not start it.",
+          done: startsAtLogin, current: current == 3
+        ) {
+          if !startsAtLogin {
+            Button("Start at login") { Task { await model.setStartAtLogin(true) } }
+              .buttonStyle(.pill(busy: model.isBusy(.startAtLogin)))
+          }
+        }
+      }
     }
   }
 
@@ -371,29 +389,30 @@ private struct Step<Actions: View>: View {
   let title: String
   let detail: String
   let done: Bool
+  let current: Bool
   @ViewBuilder let actions: Actions
 
   var body: some View {
-    VStack(spacing: 0) {
-      Hairline()
-      HStack(alignment: .top, spacing: 12) {
-        ZStack {
-          if done {
-            Circle().fill(.green)
-            Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
-          } else {
-            Circle().strokeBorder(DS.strongBorder, lineWidth: 0.5)
-            Text("\(number)").font(DS.caption).monospacedDigit()
-          }
+    HStack(alignment: .top, spacing: 14) {
+      ZStack {
+        if done {
+          Circle().fill(.green)
+          Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+        } else {
+          Circle().strokeBorder(current ? Color.accentColor : DS.strongBorder, lineWidth: current ? 1.5 : 1)
+          Text("\(number)").font(DS.caption.weight(.semibold)).monospacedDigit()
+            .foregroundStyle(current ? Color.accentColor : DS.muted)
         }
-        .frame(width: 22, height: 22)
-        .accessibilityLabel(done ? "Done" : "Step \(number)")
-        TwoLine(title: title, caption: detail, titleFont: DS.medium, wraps: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-        actions
       }
-      .padding(.vertical, 10)
+      .frame(width: 24, height: 24)
+      .accessibilityLabel(done ? "Done" : "Step \(number)")
+      TwoLine(title: title, caption: detail, titleFont: DS.rowTitle, wraps: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      actions
     }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 14)
+    .background(current ? DS.accentTint : .clear)
   }
 }
 
@@ -416,101 +435,83 @@ private struct LibraryDetail: View {
   private func content(_ row: LibraryRow) -> some View {
     let library = row.library
     let candidates = model.linkCandidates(for: name)
-    let failed = row.links.filter { $0.status == .failed }
-    return Page {
-      AutoSyncToggle(isOn: Binding(
-        get: { library.isWatched },
-        set: { enabled in Task { await model.setWatch(name, enabled: enabled) } }))
-        .disabled(model.isBusy(.watch(name)))
-        .help(library.isWatched
-          ? "Auto-sync is on: every change you save to \(name) is synced to its apps"
-          : "Turn on to sync every change you save to \(name)")
-      Button("Show in Finder", systemImage: "folder") { revealInFinder(library.root) }
-        .help("Show \(name) in Finder")
-      Button {
-        Task { await model.sync(name) }
-      } label: {
-        Label("Sync now", systemImage: "arrow.clockwise")
-          .symbolEffect(.rotate, options: .repeat(.continuous), isActive: model.isBusy(.sync(name)))
-          .labelStyle(.titleAndIcon)
+    // What needs attention first: failed installs, above the list they belong to.
+    let links = row.links.enumerated().sorted {
+      ($0.element.status == .failed ? 0 : 1, $0.offset) < ($1.element.status == .failed ? 0 : 1, $1.offset)
+    }.map(\.element)
+    let failed = links.filter { $0.status == .failed }
+    let syncing = model.isBusy(.sync(name)) || model.status?.jobs.running?.label == "sync \(name)"
+    let published = publishedParts(library, timeZone: timeZone)
+    return PinnedPage {
+      PinnedHeader(
+        symbol: "shippingbox", tint: .release, title: library.name,
+        subtitle: [published.built.map { "\(published.version) · built \($0)" } ?? published.version, syncing ? "Syncing…" : nil]
+          .compactMap { $0 }.joined(separator: " · ")
+      ) {
+        if published.built != nil { Chip(text: "DEV BUILD", kind: .dev) }
+      } actions: {
+        AutoSyncToggle(isOn: Binding(
+          get: { library.isWatched },
+          set: { enabled in Task { await model.setWatch(name, enabled: enabled) } }))
+          .disabled(model.isBusy(.watch(name)))
+          .help(library.isWatched
+            ? "Auto-sync is on: every change you save to \(name) is synced to its apps"
+            : "Turn on to sync every change you save to \(name)")
+        IconButton(symbol: "folder", label: "Show \(name) in Finder", busy: false) { revealInFinder(library.root) }
+        Button { Task { await model.sync(name) } } label: {
+          Label("Sync now", systemImage: "arrow.clockwise")
+        }
+        .buttonStyle(PillButtonStyle(kind: .primary, busy: syncing))
+        .disabled(row.links.isEmpty)
+        .help(row.links.isEmpty ? "Link an app first" : "Build, publish and install into every linked app")
       }
-      .allowsHitTesting(!model.isBusy(.sync(name)))
-      .disabled(row.links.isEmpty)
-      .help(row.links.isEmpty ? "Link an app first" : "Build, publish and install into every linked app")
     } content: {
       if let error = model.actionError {
-        ErrorBanner(message: error) { model.dismissActionError() }.padding(.bottom, 12)
+        ErrorBanner(message: error) { model.dismissActionError() }
       }
-      PageHeader(
-        symbol: "shippingbox", tint: .teal, title: library.name,
-        subtitle: library.published(timeZone: timeZone).replacingOccurrences(of: " · dev ", with: " · dev build ")
-          + (library.isWatched ? " · Auto-sync on" : ""))
+      ForEach(failed) { link in InstallFailedCallout(link: link, model: model, actions: actions) }
 
-      // What needs attention first: a failed install, above the list it belongs to.
-      ForEach(failed) { link in
-        InstallFailedCallout(link: link, model: model, actions: actions).padding(.top, 14)
-      }
-
-      SectionLabel("Linked apps")
-      HairlineGroup {
-        if row.links.isEmpty {
-          GroupRow {
-            Text("No app is linked yet. Link one below to install the dev build.").foregroundStyle(DS.muted)
+      VStack(alignment: .leading, spacing: 0) {
+        SectionHeader("Linked apps", count: row.links.count)
+        HairlineGroup {
+          if links.isEmpty {
+            GroupRow {
+              Text("No app is linked yet. Link one below to install the dev build.").foregroundStyle(DS.muted)
+            }
           }
+          ForEach(links) { link in LinkedAppRow(link: link, model: model) }
         }
-        ForEach(row.links) { link in AppRow(link: link, model: model, actions: actions) }
       }
 
-      HStack(alignment: .lastTextBaseline) {
-        SectionLabel("Apps that use \(name)")
-        Spacer()
-        Button("Look again") { Task { await model.discoverConsumers() } }
-          .buttonStyle(.borderless).controlSize(.small).font(DS.caption)
-          .disabled(model.isBusy(.discover))
-          .padding(.bottom, 4)
-      }
-      HairlineGroup {
-        if candidates.isEmpty {
-          GroupRow {
-            Text(model.isBusy(.discover) ? "Looking for apps…" : "No other app in your project folders uses \(name).")
-              .foregroundStyle(DS.muted)
+      AvailableAppsSection(library: name, candidates: candidates, model: model)
+
+      // Set once, rarely changed: a card of its own, but below what is used every day.
+      VStack(alignment: .leading, spacing: 0) {
+        SectionHeader("Build")
+        HairlineGroup {
+          ValueRow(label: "Command") {
+            if let build = library.build.map({ BuildCommand(command: $0.command, args: $0.args).line }) {
+              Text(build).font(DS.mono).lineLimit(1).truncationMode(.middle).textSelection(.enabled).help(build)
+            } else {
+              Text("No build step")
+            }
+          } trailing: {
+            Button("Change…") { navigation.libraryEditor = LibraryEditorRequest(root: library.root) }.buttonStyle(.pill)
           }
-        }
-        ForEach(candidates) { consumer in
-          SuggestedAppRow(library: name, consumer: consumer, model: model)
-        }
-        GroupRow {
-          Text("Not listed?").foregroundStyle(DS.muted)
-          Spacer()
-          Button("Choose app…") { Task { await model.chooseAppAndLink(name) } }.buttonStyle(.pill)
+          ValueRow(label: "Publishes") {
+            Text(publishFolder(library)).font(DS.mono).lineLimit(1).truncationMode(.head).textSelection(.enabled)
+          } trailing: {}
+          ValueRow(label: "Library") {
+            Text(abbreviatedPath(library.root)).font(DS.mono).lineLimit(1).truncationMode(.head).textSelection(.enabled)
+          } trailing: {}
         }
       }
 
-      // Set once, rarely changed: one quiet line, not a section of its own.
-      SectionLabel("Build")
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        VStack(alignment: .leading, spacing: 2) {
-          if let build = library.build.map({ BuildCommand(command: $0.command, args: $0.args).line }) {
-            Text(build).font(DS.mono).lineLimit(1).truncationMode(.middle).textSelection(.enabled).help(build)
-          } else {
-            Text("No build step")
-          }
-          Text("Publishes \(publishFolder(library)) · in \(abbreviatedPath(library.root))")
-            .font(DS.caption).foregroundStyle(DS.muted).lineLimit(1).truncationMode(.head)
-        }
-        Spacer(minLength: 8)
-        Button("Change…") { navigation.libraryEditor = LibraryEditorRequest(root: library.root) }.buttonStyle(.pill)
-      }
-
-      Divider().padding(.top, 18).padding(.bottom, 10)
-      HStack(spacing: 8) {
-        Button("Remove from dryfit…", role: .destructive) { confirmingRemoval = true }
-          .buttonStyle(.borderless)
-          .foregroundStyle(row.links.isEmpty ? .red : DS.muted)
-          .disabled(!row.links.isEmpty || model.isBusy(.unregister(name)))
-        Text(row.links.isEmpty ? "Your library's files are not touched." : "Restore its linked apps first.")
-          .font(DS.caption).foregroundStyle(DS.muted)
-      }
+      DangerCard(
+        title: "Remove from dryfit",
+        detail: row.links.isEmpty ? "Your library's files are not touched." : "Restore its linked apps first.",
+        button: "Remove…", enabled: row.links.isEmpty && !model.isBusy(.unregister(name))
+      ) { confirmingRemoval = true }
     }
     .confirmationDialog("Remove \(name) from dryfit?", isPresented: $confirmingRemoval) {
       Button("Remove", role: .destructive) {
@@ -532,126 +533,23 @@ private struct LibraryDetail: View {
   }
 }
 
-/// The switch for auto-sync with its name beside it, for the toolbar.
+/// "1.4.1" and "14:32" for a published "1.4.1 · dev 14:32"; the time is nil for a release or nothing yet.
+func publishedParts(_ library: Library, timeZone: TimeZone) -> (version: String, built: String?) {
+  let described = library.published(timeZone: timeZone)
+  guard let range = described.range(of: " · dev ") else { return (described, nil) }
+  return (String(described[..<range.lowerBound]), String(described[range.upperBound...]))
+}
+
+/// The switch for auto-sync with its name beside it.
 struct AutoSyncToggle: View {
   @Binding var isOn: Bool
 
   var body: some View {
     HStack(spacing: 6) {
-      Text("Auto-sync").font(DS.body).accessibilityHidden(true)
-      Toggle("Auto-sync", isOn: $isOn).toggleStyle(.switch).controlSize(.mini).labelsHidden()
+      Text("Auto-sync").font(DS.caption).foregroundStyle(DS.muted).accessibilityHidden(true)
+      Toggle("Auto-sync", isOn: $isOn).toggleStyle(.switch).controlSize(.small).labelsHidden()
     }
-    .padding(.leading, 8)
     .fixedSize()
-  }
-}
-
-/// A failed install, with its first line of output and the two ways on: read it, or put the app back.
-private struct InstallFailedCallout: View {
-  let link: DryfitAPI.Link
-  let model: MenuModel
-  let actions: MenuActions
-
-  var body: some View {
-    let failure = model.installFailure(in: link.consumer)
-    HStack(alignment: .top, spacing: 8) {
-      Image(systemName: "xmark.octagon.fill").foregroundStyle(.red).accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 2) {
-        Text("Install into \(projectName(link.consumer)) failed").font(DS.medium)
-        if let line = failure?.detail.split(whereSeparator: \.isNewline).first {
-          Text(line).font(DS.mono).foregroundStyle(DS.muted).lineLimit(1).truncationMode(.tail)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      if let failure {
-        Button("Show output") { actions.showFailures(failure.id) }.buttonStyle(.pill)
-      }
-      Button("Restore") { Task { await model.restore(link.consumer, library: link.library) } }
-        .buttonStyle(.pill(busy: model.isBusy(.restore(link.consumer, link.library))))
-        .disabled(!model.isBusy(.restore(link.consumer, link.library)) && model.isRestoring(link.consumer))
-        .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
-    }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 8)
-    .background(Color.red.opacity(0.12), in: .rect(cornerRadius: DS.radius))
-    .overlay { RoundedRectangle(cornerRadius: DS.radius).strokeBorder(Color.red.opacity(0.35), lineWidth: 1) }
-  }
-}
-
-/// An app linked to a library: what it runs, and a way back to the release.
-private struct AppRow: View {
-  let link: DryfitAPI.Link
-  let model: MenuModel
-  let actions: MenuActions
-  @Environment(\.timeZone) private var timeZone
-
-  var body: some View {
-    GroupRow {
-      Image(systemName: link.status == .failed ? "xmark.circle" : link.status == .pending ? "clock" : "checkmark.circle")
-        .foregroundStyle(link.tint)
-        .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 1) {
-        NameAndBadge(name: projectName(link.consumer), badge: packageManager)
-        if link.status == .failed, let failure = model.installFailure(in: link.consumer) {
-          Button("Install failed · Show output") { actions.showFailures(failure.id) }
-            .buttonStyle(.plain)
-            .font(DS.caption)
-            .foregroundStyle(.red)
-        } else {
-          Text(detail)
-            .font(DS.caption)
-            .foregroundStyle(link.status == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(DS.muted))
-            .lineLimit(1)
-        }
-      }
-      Spacer(minLength: 8)
-      // Always at full strength: dimmed until hovered, it read as disabled and keyboard users never saw it.
-      Button("Restore") { Task { await model.restore(link.consumer, library: link.library) } }
-        .buttonStyle(.pill(busy: busy))
-        .disabled(!busy && model.isRestoring(link.consumer))
-        .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
-    }
-    .contentShape(.rect)
-    .help(abbreviatedPath(link.consumer))
-    .contextMenu {
-      Button("Show in Finder") { revealInFinder(link.consumer) }
-    }
-  }
-
-  private var busy: Bool { model.isBusy(.restore(link.consumer, link.library)) }
-
-  private var detail: String {
-    let described = link.detail(timeZone: timeZone)
-    return link.status == .installed && link.guarded == true ? described + " · commit guard on" : described
-  }
-
-  private var packageManager: String? {
-    model.consumers.first { $0.root == link.consumer }?.packageManager.name
-  }
-}
-
-/// An app that uses the library and is not linked to it yet, with a one-click Link.
-private struct SuggestedAppRow: View {
-  let library: String
-  let consumer: DiscoveredConsumer
-  let model: MenuModel
-
-  var body: some View {
-    GroupRow {
-      Image(systemName: "macwindow").foregroundStyle(DS.muted).accessibilityHidden(true)
-      TwoLineView(
-        title: NameAndBadge(name: projectName(consumer.root), badge: consumer.packageManager.name),
-        caption: consumer.libraries.first(where: { $0.name == library }).map { describeDependency($0.range) }
-          ?? abbreviatedPath(consumer.root))
-      Spacer(minLength: 8)
-      Button("Link") { Task { await model.link(library, into: consumer.root) } }
-        .buttonStyle(.accentPill(busy: model.isBusy(.link(library, consumer.root))))
-        .help("Install the dev build of \(library) into \(projectName(consumer.root))")
-    }
-    .help(abbreviatedPath(consumer.root))
-    .contextMenu {
-      Button("Show in Finder") { revealInFinder(consumer.root) }
-    }
   }
 }
 
@@ -671,68 +569,64 @@ private struct GroupDetail: View {
   }
 
   private func content(_ group: DryfitAPI.Group) -> some View {
-    Page {
-      Button {
-        Task { await model.restoreGroup(name) }
-      } label: {
-        Label("Restore all", systemImage: "arrow.uturn.backward").labelStyle(.titleAndIcon)
-      }
-      .disabled(model.isBusy(.restoreGroup(name)))
-      .help("Put every app in \(name) back on released versions")
-      Menu {
-        ForEach(model.status?.libraries ?? []) { library in
-          Button(library.name) { Task { await model.linkGroup(name, library: library.name) } }
+    let warnings = model.status?.warnings.filter { $0.group == name } ?? []
+    return PinnedPage {
+      PinnedHeader(
+        symbol: "square.stack.3d.up", tint: .purple, title: group.name,
+        subtitle: "Link a library into all of these apps at once, and restore them together."
+      ) {
+        EmptyView()
+      } actions: {
+        PillMenu(busy: model.isBusy(.linkGroup(name))) {
+          ForEach(model.status?.libraries ?? []) { library in
+            Button(library.name) { Task { await model.linkGroup(name, library: library.name) } }
+          }
+        } label: {
+          Label("Link library", systemImage: "link.badge.plus")
         }
-      } label: {
-        Label("Link library", systemImage: "link.badge.plus").labelStyle(.titleAndIcon)
+        .disabled(model.status?.libraries.isEmpty ?? true)
+        .help("Link a library into every app in \(name)")
+        Button { Task { await model.restoreGroup(name) } } label: {
+          Label("Restore all", systemImage: "arrow.uturn.backward")
+        }
+        .buttonStyle(.pill(busy: model.isBusy(.restoreGroup(name))))
+        .help("Put every app in \(name) back on released versions")
       }
-      .disabled(model.status?.libraries.isEmpty ?? true || model.isBusy(.linkGroup(name)))
-      .help("Link a library into every app in \(name)")
     } content: {
       if let error = model.actionError {
-        ErrorBanner(message: error) { model.dismissActionError() }.padding(.bottom, 12)
+        ErrorBanner(message: error) { model.dismissActionError() }
       }
-      PageHeader(
-        symbol: "square.stack.3d.up", tint: .purple, title: group.name,
-        subtitle: "Link a library into all of these apps at once, and restore them together.")
-      SectionLabel("Apps")
-      HairlineGroup {
-        ForEach(group.consumers, id: \.self) { consumer in
-          GroupRow {
-            TwoLine(title: projectName(consumer), caption: abbreviatedPath(consumer)).layoutPriority(1)
-            Spacer(minLength: 8)
-            Text(linked(consumer)).foregroundStyle(DS.muted).lineLimit(1)
-          }
-        }
-        GroupRow {
-          Spacer()
-          Button("Edit…") { navigation.groupEditor = .edit(group) }.buttonStyle(.pill)
-        }
+      ForEach(Array(warnings.enumerated()), id: \.offset) { _, warning in
+        Callout(
+          condition: .warning, title: "\(warning.library) differs between these apps",
+          message: warning.versions
+            .map { "\(projectName($0.consumer)) is on \(DevVersion.describe($0.version, timeZone: timeZone))" }
+            .joined(separator: " · "))
       }
-      if let warnings = model.status?.warnings.filter({ $0.group == name }), !warnings.isEmpty {
-        HairlineGroup(border: .orange.opacity(0.5)) {
-          ForEach(Array(warnings.enumerated()), id: \.offset) { _, warning in
+      VStack(alignment: .leading, spacing: 0) {
+        SectionHeader(title: "Apps", count: group.consumers.count) {
+          Button("Edit…") { navigation.groupEditor = .edit(group) }.buttonStyle(.borderless)
+        }
+        HairlineGroup {
+          ForEach(group.consumers, id: \.self) { consumer in
             GroupRow {
-              Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange).accessibilityHidden(true)
-              Text(
-                "\(warning.library) differs: "
-                  + warning.versions
-                  .map { "\(projectName($0.consumer)) \(DevVersion.describe($0.version, timeZone: timeZone))" }
-                  .joined(separator: ", "))
-                .fixedSize(horizontal: false, vertical: true)
+              TwoLine(title: projectName(consumer), caption: abbreviatedPath(consumer), titleFont: DS.rowTitle)
+                .layoutPriority(1)
+              Spacer(minLength: 8)
+              let libraries = linkedLibraries(consumer)
+              if libraries.isEmpty {
+                Chip(text: "Released versions", kind: .release)
+              } else {
+                Chip(text: "Dev build of " + libraries.joined(separator: ", "), kind: .dev)
+              }
             }
           }
         }
-        .padding(.top, 12)
       }
-      Divider().padding(.top, 18).padding(.bottom, 10)
-      HStack(spacing: 8) {
-        Button("Delete group…", role: .destructive) { confirmingDeletion = true }
-          .buttonStyle(.borderless)
-          .foregroundStyle(.red)
-          .disabled(model.isBusy(.deleteGroup(name)))
-        Text("Its apps stay as they are.").font(DS.caption).foregroundStyle(DS.muted)
-      }
+      DangerCard(
+        title: "Delete group", detail: "Its apps stay as they are.", button: "Delete…",
+        enabled: !model.isBusy(.deleteGroup(name))
+      ) { confirmingDeletion = true }
     }
     .confirmationDialog("Delete the group \(name)?", isPresented: $confirmingDeletion) {
       Button("Delete", role: .destructive) {
@@ -747,9 +641,7 @@ private struct GroupDetail: View {
     }
   }
 
-  private func linked(_ consumer: String) -> String {
-    let links = model.status?.links.filter { $0.consumer == consumer } ?? []
-    guard !links.isEmpty else { return "Released versions" }
-    return "Dev build of " + links.map(\.library).joined(separator: ", ")
+  private func linkedLibraries(_ consumer: String) -> [String] {
+    (model.status?.links.filter { $0.consumer == consumer } ?? []).map(\.library)
   }
 }

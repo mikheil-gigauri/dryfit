@@ -12,7 +12,7 @@ or newer, or Bun.
 npm install --global @dryfit/cli
 ```
 
-This puts `dryfit` on your PATH, which every command below uses. To try it without installing, put
+This puts `dryfit` on your PATH for the commands below. To try it without installing anything, use
 `npx @dryfit/cli` wherever this guide says `dryfit`.
 
 ## Start dryfit
@@ -23,10 +23,9 @@ Run this in the folder of the library you are working on:
 dryfit init
 ```
 
-`init` remembers where your projects live and starts dryfit's background service. By default that is the
-folder above the one you are in, so a library in `~/code/ui` makes dryfit look through `~/code`. Run it
-from somewhere else and it looks in the wrong place, so pass `--root` once per folder when your apps live
-elsewhere:
+`init` remembers where your projects live and starts dryfit's background service. By default, that is the
+folder above the one you are in: for a library in `~/code/ui`, dryfit looks through `~/code`. If your apps
+live somewhere else, pass `--root` once for each folder:
 
 ```bash
 dryfit init --root ~/code --root ~/work
@@ -40,8 +39,8 @@ Nothing in your projects changes yet. dryfit keeps its own state in `~/.dryfit`.
 dryfit add
 ```
 
-dryfit works out how the library is built and what gets published. It recognises Nx and Angular CLI
-libraries and packages with a `build` script. When it cannot tell, say so with `--build "<command>"` and
+dryfit works out how the library is built and which folder gets published. It recognises Nx and Angular
+CLI libraries and packages with a `build` script. When it cannot tell, set them yourself with `--build "<command>"` and
 `--publish-dir <dir>`. [Build and publish settings](/dryfit/guides/libraries/) explains which folders to
 choose.
 
@@ -51,8 +50,8 @@ choose.
 dryfit consumers
 ```
 
-This lists every project under your roots that depends on the library, by name, with its folder. It only
-looks.
+This lists every project under your roots that depends on the library, with its name and folder. It only
+reads: nothing changes yet.
 
 ## Link an app
 
@@ -63,12 +62,12 @@ dryfit link shop
 Name the app as `dryfit consumers` lists it, or give its folder, such as `../shop`. A folder is relative to
 where you run the command.
 
-Linking is the first time dryfit touches the app. It saves a copy of the app's `package.json` and
+Linking is the first time dryfit changes anything in the app. It saves a copy of the app's `package.json` and
 lockfile, installs a dev build of the library the way a release would be installed, clears the framework
 caches that would hide it, and adds a [commit guard](/dryfit/guides/commit-guard/) so the dev build
 cannot be committed by accident.
 
-`dryfit status` shows every link and the dev version each app runs, so you can check it worked.
+To check that it worked, `dryfit status` shows every link and the dev version each app runs.
 
 ## Work
 
@@ -82,7 +81,7 @@ caches, it tells you to restart that app's dev server: one that is running keeps
 until then.
 
 `watch` prints what dryfit does as it happens. Ctrl-C stops the printing, not the watching: dryfit keeps
-installing every save until you run `dryfit unwatch`. To build and install once instead, run `dryfit sync`.
+installing every save until you run `dryfit unwatch`. To build and install just once, run `dryfit sync`.
 
 ## Put the app back
 
@@ -93,7 +92,7 @@ dryfit restore shop
 The app's `package.json` and lockfile are written back exactly as they were, its dependencies are
 reinstalled from them, and the commit guard is removed. `restore --all` does every linked app at once.
 
-If you changed the app's `package.json` while it was linked, restore stops rather than lose your change.
+If you changed the app's `package.json` while it was linked, restore stops instead of losing your change.
 Commit or stash it first, or run `dryfit restore shop --force` to overwrite it.
 
 ## Keep it running

@@ -3,10 +3,10 @@ title: Build and publish settings
 description: Which folder to add, how dryfit builds a library, and which folder it publishes.
 ---
 
-Every library dryfit knows has three settings: its folder, a build command and a publish folder. `dryfit
-add` and **Add Library** in the [menu bar app](/dryfit/guides/menu-bar/) fill them in for you, and you
-can change them before the library is added or later. This page says what each one means and what dryfit
-picks.
+Every library you add to dryfit has three settings: its folder, a build command and a publish folder.
+`dryfit add` and **Add library** in the [menu bar app](/dryfit/guides/menu-bar/) fill them in for you, and
+you can change them before the library is added or at any time after. This page explains each one and
+what dryfit picks by default.
 
 ## The library folder
 
@@ -63,7 +63,7 @@ A relative `--publish-dir` is resolved from the library folder, not from where y
 from the workspace root. In a workspace, the output usually sits a few levels up, as in the example above.
 An absolute path always works.
 
-In the menu bar app, **Add Library** shows the detected settings before anything is added. Edit the
+In the menu bar app, **Add library** shows the detected settings before anything is added. Edit the
 command, or choose **Choose…** next to the publish folder. For a library already added, use **Change…** on
 its page.
 
@@ -87,7 +87,7 @@ dryfit then treats them as a set:
   other.
 
 Linked on its own, a library whose released siblings pin it exactly either fails to install or leaves
-the app in a state npm refuses to build on. dryfit says which library to link with it.
+the app in a state npm refuses to build on. When that happens, dryfit names the library to link with it.
 
 ## Watching
 

@@ -1,13 +1,5 @@
 import type React from 'react';
-import {
-  Easing,
-  interpolate,
-  OffthreadVideo,
-  spring,
-  staticFile,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
+import { Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { color, font } from './theme';
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -186,58 +178,144 @@ export const Window: React.FC<{
   </div>
 );
 
+/** Size of the window stills in public/ui: a 1000×690pt window captured at 2x. */
+const STILL = { width: 2000, height: 1380 };
+
+export type Still = { src: string; at: number };
+/** A cursor position in still pixels, reached at frame `at`. */
+export type CursorKey = { at: number; x: number; y: number };
+/** A rectangle in still pixels that glows briefly from frame `at`, to point at what changed. */
+export type Flash = { at: number; x: number; y: number; w: number; h: number };
+
 /**
- * A real screen recording of dryfit's window (1920×1200, captured at 2x), shown at `width`.
- * `from` is the second in the recording to start at; `rate` speeds it up.
+ * dryfit's window as real captures of its states (public/ui, made by the menubar's PromoCapture test),
+ * cross-faded in turn at their frames, with a cursor that clicks at `clicks`.
  */
-export const AppRecording: React.FC<{
-  src: string;
-  from: number;
-  rate?: number;
+export const AppStills: React.FC<{
+  stills: Still[];
+  cursor?: CursorKey[];
+  clicks?: number[];
+  flashes?: Flash[];
   width?: number;
-  zoom?: { at: number; scale: number; originX: number; originY: number; until?: number };
-  style?: React.CSSProperties;
-}> = ({ src, from, rate = 1, width = 1340, zoom, style }) => {
+}> = ({ stills, cursor = [], clicks = [], flashes = [], width = 1240 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const enter = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 18 });
-  const z = zoom
-    ? 1 +
-      (zoom.scale - 1) *
-        (ease(frame, zoom.at, zoom.at + 20) -
-          (zoom.until === undefined ? 0 : ease(frame, zoom.until, zoom.until + 16)))
-    : 1;
-  const height = (width * 1200) / 1920;
+  const k = width / STILL.width;
   return (
     <div
       style={{
+        position: 'relative',
         width,
-        height,
-        borderRadius: (width / 1920) * 24,
+        height: STILL.height * k,
+        borderRadius: 20 * k * 2,
         overflow: 'hidden',
         boxShadow: '0 50px 140px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07)',
         transform: `translateY(${(1 - enter) * 40}px) scale(${0.97 + enter * 0.03})`,
         opacity: enter,
-        ...style,
       }}
     >
-      <div
+      {stills.map((still, i) => (
+        <Img
+          key={still.src}
+          src={staticFile(still.src)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            opacity: i === 0 ? 1 : ease(frame, still.at, still.at + 5),
+          }}
+        />
+      ))}
+      {flashes.map((f) => {
+        const t = ease(frame, f.at, f.at + 6) * (1 - ease(frame, f.at + 22, f.at + 34));
+        return (
+          <div
+            key={`${f.at}-${f.y}`}
+            style={{
+              position: 'absolute',
+              left: f.x * k,
+              top: f.y * k,
+              width: f.w * k,
+              height: f.h * k,
+              borderRadius: 10,
+              border: `2px solid ${color.teal}`,
+              background: 'rgba(63,215,207,0.12)',
+              boxShadow: '0 0 24px rgba(63,215,207,0.45)',
+              opacity: t,
+              transform: `scale(${1.08 - 0.08 * t})`,
+            }}
+          />
+        );
+      })}
+      {cursor.length > 0 ? <Cursor keys={cursor} clicks={clicks} scale={k} /> : null}
+    </div>
+  );
+};
+
+/** The macOS arrow, gliding between keys, with a ring at each click. */
+const Cursor: React.FC<{ keys: CursorKey[]; clicks: number[]; scale: number }> = ({
+  keys,
+  clicks,
+  scale,
+}) => {
+  const frame = useCurrentFrame();
+  const frames = keys.map((key) => key.at);
+  const along = (values: number[]) =>
+    keys.length === 1
+      ? values[0]
+      : interpolate(frame, frames, values, { ...clamp, easing: Easing.bezier(0.45, 0, 0.2, 1) });
+  const x = along(keys.map((key) => key.x)) * scale;
+  const y = along(keys.map((key) => key.y)) * scale;
+  const first = keys[0].at;
+  const last = keys[keys.length - 1].at;
+  const opacity = ease(frame, first - 6, first) * (1 - ease(frame, last + 10, last + 18));
+  const press = clicks.some((c) => frame >= c && frame < c + 4);
+  return (
+    <>
+      {clicks.map((c) => {
+        const t = ease(frame, c, c + 14);
+        return frame >= c && frame < c + 16 ? (
+          <div
+            key={c}
+            style={{
+              position: 'absolute',
+              left: x - 30,
+              top: y - 30,
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              border: `3px solid ${color.teal}`,
+              opacity: 1 - t,
+              transform: `scale(${0.3 + t})`,
+            }}
+          />
+        ) : null;
+      })}
+      <svg
+        aria-hidden="true"
+        width={30}
+        height={44}
+        viewBox="0 0 15 22"
         style={{
-          width: '100%',
-          height: '100%',
-          transform: `scale(${z})`,
-          transformOrigin: zoom ? `${zoom.originX * 100}% ${zoom.originY * 100}%` : 'center',
+          position: 'absolute',
+          left: x - 3,
+          top: y - 2,
+          opacity,
+          transform: `scale(${press ? 0.88 : 1})`,
+          transformOrigin: '3px 2px',
+          filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.45))',
         }}
       >
-        <OffthreadVideo
-          src={staticFile(src)}
-          trimBefore={Math.round(from * fps)}
-          playbackRate={rate}
-          muted
-          style={{ width: '100%', height: '100%' }}
+        <path
+          d="M1.5 1.5v16.2l4-3.9 2.6 6.1 2.6-1.1-2.6-6h5.6z"
+          fill="#111"
+          stroke="#fff"
+          strokeWidth={1.4}
         />
-      </div>
-    </div>
+      </svg>
+    </>
   );
 };
 

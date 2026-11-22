@@ -88,7 +88,7 @@ install it with npm (`npm install --global @dryfit/cli`), which needs Node.js.
 
 ## Updates
 
-Install the app once; it keeps itself up to date. Once a day it looks for a new version, downloads it in
+Install the app once, and it keeps itself up to date. Once a day it looks for a new version, downloads it in
 the background, and replaces and reopens itself the next time you are not using it. Your libraries, apps
 and links are untouched: they live in dryfit's service, which keeps running.
 
@@ -99,4 +99,4 @@ links and watches carry over. Settings shows the same.
 
 To choose when, turn off **Install updates automatically** in Settings: the app then asks before
 installing. **Check for Updates…** in the icon's right-click menu looks right away. Versions from before 0.3.0 do not
-update themselves; download the newest once more.
+update themselves, so download the newest version once more.

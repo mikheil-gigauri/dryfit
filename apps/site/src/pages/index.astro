@@ -3,21 +3,25 @@
 // the hero can show what dryfit does instead of describing it.
 //
 // The look is an assembly drawing, after the name: a dry fit puts parts together without glue to check
-// they fit, then takes them apart. The hero is the one drawing on the page; everything around it stays
-// quiet. Teal is always a release and magenta always a dev build, as in the CLI and the menu bar app.
+// they fit, then takes them apart. The hero's drawing is the one interactive moment. Each section behind
+// it is drawn on a different drafting surface (a grid, hatching, a blueprint, an exploded view, a title
+// block), so the page reads as one set of sheets without any section shouting. Teal is always a release
+// and magenta always a dev build, as in the CLI and the menu bar app.
 import '@fontsource-variable/bricolage-grotesque/standard.css';
 import '@fontsource-variable/martian-mono';
+import cli from '../../../../packages/dryfit/package.json';
 
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const repo = 'https://github.com/mikheil-gigauri/dryfit';
 const download = `${repo}/releases/latest/download/Dryfit.dmg`;
-const docs = (path: string) => `${base}${path}/`;
+const docs = (path: string) => (path.includes('#') ? `${base}${path}` : `${base}${path}/`);
 const canonical = new URL(base, Astro.site).href;
 const title = 'dryfit: test your npm library in real apps, without npm link or yalc';
 const description =
   'Test an unreleased npm library inside the apps that use it, without npm link or yalc. dryfit publishes every change to a registry on your machine, installs it in the apps you choose, and puts them back exactly as they were.';
 const ogImage = new URL(`${base}menu/online.light.png`, Astro.site).href;
 const apps = ['shop', 'admin', 'checkout'];
+const install = 'npm i -g @dryfit/cli';
 
 const shortfalls = [
   {
@@ -31,7 +35,7 @@ const shortfalls = [
     problem: 'Two copies of React or Angular',
     linked:
       'The linked folder resolves its own dependencies, so a framework that must load once loads twice.',
-    dryfit: 'The app resolves one copy, exactly as it will for the release.',
+    dryfit: 'The app resolves one copy of each framework, exactly as it will for the release.',
   },
   {
     problem: 'Caches keep the old build',
@@ -42,7 +46,7 @@ const shortfalls = [
     problem: 'Cleaning up is on you',
     linked: 'The link stays until you remember it, and a lockfile that points at it is easy to commit.',
     dryfit:
-      'Restore puts package.json and the lockfile back byte for byte. A git hook keeps dev builds out of commits.',
+      'Restore puts package.json and the lockfile back byte for byte, and a git hook keeps dev builds out of commits.',
   },
 ];
 
@@ -50,22 +54,61 @@ const steps = [
   {
     title: 'Set up',
     command: 'dryfit init && dryfit add',
-    text: 'In your library’s folder: dryfit learns where your apps live, starts its background service, and works out how the library builds.',
+    text: 'Run it in your library’s folder. dryfit finds the apps around it, starts its background service and works out how the library builds.',
   },
   {
     title: 'Link an app',
     command: 'dryfit link shop',
-    text: 'dryfit saves the app’s package.json and lockfile, installs a dev build, and adds a git hook that keeps dev builds out of commits.',
+    text: 'dryfit saves the app’s package.json and lockfile, installs a dev build and adds a git hook that keeps it out of commits.',
   },
   {
     title: 'Save a change',
     command: '1.4.1-dev.20261119143201',
-    text: 'With dryfit watch on, every save is built and published under a version that never existed, installed by the app’s package manager, with stale framework caches cleared. dryfit says when to restart a dev server.',
+    text: 'With dryfit watch running, each save is built, published under a version that never existed and installed by the app’s package manager. dryfit clears stale caches and tells you when to restart a dev server.',
   },
   {
     title: 'Restore',
     command: 'dryfit restore shop',
-    text: 'package.json and the lockfile go back byte for byte, and the app reinstalls from them.',
+    text: 'package.json and the lockfile go back byte for byte, and the app reinstalls from them. Nothing is left behind.',
+  },
+];
+
+const fits = [
+  {
+    part: 'Package managers',
+    names: ['npm', 'pnpm', 'Yarn 2+', 'Bun'],
+    note: 'Each app installs the dev build with the package manager and lockfile it already uses.',
+    href: 'guides/package-managers',
+  },
+  {
+    part: 'Library builds',
+    names: ['Nx', 'Angular CLI', 'any build script'],
+    note: 'dryfit works out how the library builds and which folder it publishes. You can change either.',
+    href: 'guides/libraries',
+  },
+  {
+    part: 'Framework caches',
+    names: ['Angular', 'Vite', 'Native Federation'],
+    note: 'Cleared after every install, so a dev server never keeps serving the previous build.',
+    href: 'guides/frameworks',
+  },
+  {
+    part: 'Apps that run together',
+    names: ['Module Federation', 'Native Federation'],
+    note: 'A shell and its remotes are linked and restored as one group, with a warning when their versions drift apart.',
+    href: 'guides/frameworks/#apps-that-run-together',
+  },
+  {
+    part: 'Coding agents',
+    names: ['Claude Code', 'any agent'],
+    note: 'Every command can answer in JSON, and dryfit agent install teaches Claude Code to link, sync and restore for you.',
+    href: 'guides/agents',
+  },
+  {
+    part: 'Systems',
+    names: ['macOS', 'Linux', 'Node 22.12+'],
+    note: 'The CLI runs on both. The menu bar app needs macOS 26 or later.',
+    href: 'guides/getting-started',
   },
 ];
 ---
@@ -102,113 +145,121 @@ const steps = [
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
-    <header class="bar">
-      <a class="mark" href={base} aria-label="dryfit home">
-        <!-- The app icon drawn small: a release package, with a dev tag cut into its corner. -->
-        <svg viewBox="0 0 32 32" aria-hidden="true">
-          <mask id="mark-cut">
-            <rect width="32" height="32" fill="#fff"></rect>
-            <rect x="16.4" y="18.7" width="13.85" height="8.35" rx="4.175" fill="#000"></rect>
-          </mask>
-          <g mask="url(#mark-cut)">
-            <path class="mark-front" d="M16 5.5 25.75 10.375V21.625L16 26.5 6.25 21.625V10.375Z"></path>
-            <path class="mark-top" d="M16 5.5 25.75 10.375 16 15.25 6.25 10.375Z"></path>
-            <path class="mark-side" d="M16 15.25 25.75 10.375V21.625L16 26.5Z"></path>
-            <path class="mark-tape" d="M11.125 7.94 20.875 12.81V15.625"></path>
-          </g>
-          <rect class="mark-dev" x="17.7" y="20" width="11.25" height="5.75" rx="2.875"></rect>
-        </svg>
-        dryfit
-      </a>
-      <nav aria-label="Site">
-        <a href={docs('guides/getting-started')}>Docs</a>
-        <a href={docs('reference/cli')}>CLI</a>
-        <a href={repo}>GitHub</a>
-      </nav>
-    </header>
 
-    <main id="main">
-      <section class="hero">
-        <div class="pitch">
-          <p class="eyebrow">For npm library authors: an alternative to npm link and yalc</p>
-          <h1>Try your next release in the apps that will install it.</h1>
-          <p class="lede">
-            dryfit publishes every change you save to a registry on your machine, installs it in the apps you choose,
-            and puts them back exactly as they were.
-          </p>
-          <div class="command" data-copy="npm i -g @dryfit/cli">
-            <code><span class="prompt" aria-hidden="true">$</span> npm i -g @dryfit/cli</code>
-            <button type="button" class="copy">Copy</button>
-            <span class="copied" role="status"></span>
-          </div>
-          <p class="next">
-            Then run <code>dryfit init</code> in your library’s folder. Works with npm, pnpm, Yarn 2+ and Bun on macOS
-            and Linux.
-            <a href={docs('guides/getting-started')}>Read the getting started guide</a>
-          </p>
-        </div>
+    <div class="band top">
+      <div class="art grid" aria-hidden="true"></div>
+      <div class="art ruler" aria-hidden="true"></div>
+      <header class="bar wrap">
+        <a class="mark" href={base} aria-label="dryfit home">
+          <!-- The app icon drawn small: a release package, with a dev tag cut into its corner. -->
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <mask id="mark-cut">
+              <rect width="32" height="32" fill="#fff"></rect>
+              <rect x="16.4" y="18.7" width="13.85" height="8.35" rx="4.175" fill="#000"></rect>
+            </mask>
+            <g mask="url(#mark-cut)">
+              <path class="mark-front" d="M16 5.5 25.75 10.375V21.625L16 26.5 6.25 21.625V10.375Z"></path>
+              <path class="mark-top" d="M16 5.5 25.75 10.375 16 15.25 6.25 10.375Z"></path>
+              <path class="mark-side" d="M16 15.25 25.75 10.375V21.625L16 26.5Z"></path>
+              <path class="mark-tape" d="M11.125 7.94 20.875 12.81V15.625"></path>
+            </g>
+            <rect class="mark-dev" x="17.7" y="20" width="11.25" height="5.75" rx="2.875"></rect>
+          </svg>
+          dryfit
+        </a>
+        <nav aria-label="Site">
+          <a href={docs('guides/getting-started')}>Docs</a>
+          <a href={docs('reference/cli')}>CLI</a>
+          <a href={repo}>GitHub</a>
+        </nav>
+      </header>
 
-        <figure class="drawing" data-state="release" aria-labelledby="drawing-log">
-          <div class="sheet">
-            <div class="part">
-              <span class="part-name">@acme/ui</span>
-              <code class="part-rev">1.4.0</code>
+      <main id="main">
+        <section class="hero wrap">
+          <div class="pitch">
+            <p class="kicker">For npm library authors who have outgrown npm link and yalc</p>
+            <h1>Try your next release in the apps that will install it.</h1>
+            <p class="lede">
+              dryfit publishes every change you save to a registry on your machine, installs it in the apps you
+              choose, and puts them back exactly as they were.
+            </p>
+            <div class="command" data-copy={install}>
+              <code><span class="prompt" aria-hidden="true">$</span> {install}</code>
+              <button type="button" class="copy">Copy</button>
+              <span class="copied" role="status"></span>
             </div>
-            <svg class="leaders" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
-              <path pathLength="1" d="M150 0 V24 M50 64 V24 H250 V64 M150 24 V64"></path>
-            </svg>
-            <ol class="apps">
-              {
-                apps.map((app, index) => (
-                  <li style={`--i: ${index}`}>
-                    <span class="socket">
-                      <code class="insert">1.4.0</code>
-                    </span>
-                    <span class="app-name">{app}</span>
-                  </li>
-                ))
-              }
-            </ol>
-            <div class="dimension" aria-hidden="true">
-              <code class="dimension-label">1.4.0</code>
-            </div>
+            <p class="next">
+              Then run <code>dryfit init</code> in your library’s folder. Works with npm, pnpm, Yarn 2+ and Bun on macOS
+              and Linux.
+              <a href={docs('guides/getting-started')}>Read the getting started guide</a>
+            </p>
           </div>
-          <dl class="title-block">
-            <div>
-              <dt>Part</dt>
-              <dd>@acme/ui</dd>
-            </div>
-            <div>
-              <dt>Revision</dt>
-              <dd class="block-rev">1.4.0, the release</dd>
-            </div>
-            <div>
-              <dt>Fitted to</dt>
-              <dd>shop, admin, checkout</dd>
-            </div>
-          </dl>
-          <div class="controls">
-            <button type="button" class="fit">Save a change</button>
-            <button type="button" class="restore" disabled>Restore</button>
-          </div>
-          <figcaption id="drawing-log" aria-live="polite">Three apps on the 1.4.0 release.</figcaption>
-        </figure>
-      </section>
 
-      <section class="shortfalls" aria-labelledby="shortfalls-title">
+          <figure class="drawing" data-state="release" aria-labelledby="drawing-log">
+            <div class="sheet">
+              <div class="part">
+                <span class="part-name">@acme/ui</span>
+                <code class="part-rev">1.4.0</code>
+              </div>
+              <svg class="leaders" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+                <path pathLength="1" d="M150 0 V24 M50 64 V24 H250 V64 M150 24 V64"></path>
+              </svg>
+              <ol class="apps">
+                {
+                  apps.map((app, index) => (
+                    <li style={`--i: ${index}`}>
+                      <span class="socket">
+                        <code class="insert">1.4.0</code>
+                      </span>
+                      <span class="app-name">{app}</span>
+                    </li>
+                  ))
+                }
+              </ol>
+              <div class="dimension" aria-hidden="true">
+                <code class="dimension-label">1.4.0</code>
+              </div>
+            </div>
+            <dl class="title-block">
+              <div>
+                <dt>Part</dt>
+                <dd>@acme/ui</dd>
+              </div>
+              <div>
+                <dt>Revision</dt>
+                <dd class="block-rev">1.4.0, the release</dd>
+              </div>
+              <div>
+                <dt>Fitted to</dt>
+                <dd>shop, admin, checkout</dd>
+              </div>
+            </dl>
+            <div class="controls">
+              <button type="button" class="fit">Save a change</button>
+              <button type="button" class="restore" disabled>Restore</button>
+            </div>
+            <figcaption id="drawing-log" aria-live="polite">Three apps on the 1.4.0 release.</figcaption>
+          </figure>
+        </section>
+      </main>
+    </div>
+
+    <section class="band shortfalls" aria-labelledby="shortfalls-title">
+      <div class="wrap">
         <div class="section-head">
           <h2 id="shortfalls-title">Where npm link falls short</h2>
           <p>
-            A symlink is the fastest way to see a change, and often good enough. When the change has to behave as the
-            release will, these are the gaps. yalc closes the first two, but keeps one version between pushes.{' '}
+            A symlink is the fastest way to see a change, and often it is enough. When the change has to behave
+            exactly as the release will, these are the gaps. yalc closes the first two, but reuses one version
+            between pushes, so caches can still serve the old build.{' '}
             <a href={docs('guides/comparison')}>Compare all three</a>
           </p>
         </div>
         <div class="rows" role="table" aria-label="npm link compared with dryfit">
           <div class="row row-head" role="row">
             <span role="columnheader">The problem</span>
-            <span role="columnheader">With npm link</span>
-            <span role="columnheader">With dryfit</span>
+            <span role="columnheader" class="linked">With npm link</span>
+            <span role="columnheader" class="fitted">With dryfit</span>
           </div>
           {
             shortfalls.map((item) => (
@@ -224,34 +275,105 @@ const steps = [
             ))
           }
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="steps" aria-labelledby="steps-title">
+    <section class="band blueprint steps" aria-labelledby="steps-title">
+      <div class="art grid" aria-hidden="true"></div>
+      <div class="wrap">
         <div class="section-head">
           <h2 id="steps-title">From a saved file to every app that uses it</h2>
+          <p>Four commands, and only the second one touches your app. The last one takes it back.</p>
         </div>
-        <ol>
+        <ol class="route">
           {
             steps.map((step, index) => (
               <li>
-                <span class="step-number" aria-hidden="true">
+                <span class="node" aria-hidden="true">
                   {index + 1}
                 </span>
                 <h3>{step.title}</h3>
-                <code>{step.command}</code>
+                <code class:list={{ dev: index === 2 }}>{step.command}</code>
                 <p>{step.text}</p>
               </li>
             ))
           }
         </ol>
-      </section>
+      </div>
+    </section>
 
-      <section class="menu" aria-labelledby="menu-title">
+    <section class="band fits" aria-labelledby="fits-title">
+      <!--
+        An exploded view of the dryfit package: the lid (the dev build) lifted off the box (the app) on
+        assembly lines, with hidden edges dashed and a dimension line along the front.
+      -->
+      <svg class="art exploded" viewBox="60 20 500 590" aria-hidden="true">
+        <g class="hidden-edges">
+          <path d="M300 330 L490.5 440 M300 330 L109.5 440 M300 330 L300 180"></path>
+        </g>
+        <g class="body-edges">
+          <path d="M490.5 440 L300 550 L109.5 440"></path>
+          <path d="M490.5 440 V290 M300 550 V400 M109.5 440 V290"></path>
+          <path d="M300 180 L490.5 290 L300 400 L109.5 290 Z"></path>
+        </g>
+        <g class="lid-edges">
+          <path d="M300 36 L490.5 146 L300 256 L109.5 146 Z"></path>
+          <path d="M490.5 180 L300 290 L109.5 180"></path>
+          <path d="M490.5 180 V146 M300 290 V256 M109.5 180 V146"></path>
+          <path class="tape" d="M216.9 84 L407.4 194 M192.6 98 L383.1 208"></path>
+        </g>
+        <g class="assembly">
+          <path d="M490.5 190 V276 M300 300 V386 M109.5 190 V276"></path>
+          <path class="tip" d="M486 268 L490.5 280 L495 268 Z M295.5 378 L300 390 L304.5 378 Z M105 268 L109.5 280 L114 268 Z"></path>
+        </g>
+        <g class="dims">
+          <path d="M521.7 458 L331.2 568 M495.7 443 L530.4 463 M305.2 553 L339.8 573"></path>
+          <path d="M78.3 458 V308 M104.3 443 L69.6 463 M104.3 293 L69.6 313"></path>
+          <text x="426.4" y="513" transform="rotate(-30 426.4 513)" dy="-8">1.4.1-dev</text>
+          <text x="78.3" y="383" transform="rotate(-90 78.3 383)" dy="-8">1.4.0</text>
+        </g>
+      </svg>
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="fits-title">It fits the setup you already have</h2>
+          <p>
+            No new package manager, no config file in your apps and nothing to remember to undo. dryfit adapts to how
+            each app already installs and builds.
+          </p>
+        </div>
+        <div class="parts" role="table" aria-label="What dryfit works with">
+          <div class="parts-row parts-head" role="row">
+            <span role="columnheader">Part</span>
+            <span role="columnheader">Fits</span>
+            <span role="columnheader">What dryfit does</span>
+          </div>
+          {
+            fits.map((item) => (
+              <div class="parts-row" role="row">
+                <h3 role="rowheader">{item.part}</h3>
+                <ul class="names" role="cell">
+                  {item.names.map((name) => (
+                    <li>{name}</li>
+                  ))}
+                </ul>
+                <p role="cell">
+                  {item.note} <a href={docs(item.href)} aria-label={`More about ${item.part.toLowerCase()}`}>More</a>
+                </p>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="band desk-band menu" aria-labelledby="menu-title">
+      <div class="art dots" aria-hidden="true"></div>
+      <div class="wrap menu-layout">
         <div class="menu-text">
           <h2 id="menu-title">Keep an eye on it from the menu bar</h2>
           <p>
-            On macOS, dryfit’s menu shows every library, the apps it is fitted to and the version each one runs. Turn
-            watching on, link another app, restore one, or read why an install failed, without a terminal.
+            On macOS, dryfit’s menu shows every library, the apps it is linked into and the version each one runs.
+            Turn on auto-sync, link another app, restore one or read why an install failed, all without a terminal.
           </p>
           <a class="button" href={download}>Download for macOS</a>
           <p class="note">
@@ -259,11 +381,11 @@ const steps = [
             <a href={docs('guides/menu-bar')}>How to open it</a>
           </p>
         </div>
-        <!-- Both images are the app's own snapshot tests (scripts/generate.ts copies them). -->
+        <!-- Both images are captured from the running app (scripts/generate.ts copies them). -->
         <figure
           class="desk"
           role="img"
-          aria-label="The dryfit window showing @acme/ui at 1.4.1 dev 14:32, linked to shop and failing to install into admin, with the menu bar menu open in front of it listing the same library, apps and the checkout group."
+          aria-label="The dryfit window showing @acme/ui linked into shop and admin, with the menu bar menu open in front of it listing the same library, its apps and a group."
         >
           <div class="window">
             <div class="titlebar" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -275,14 +397,61 @@ const steps = [
             <img class="only-dark" src={`${base}menu/online.dark.png`} width="372" height="513" alt="" />
           </div>
         </figure>
-      </section>
-    </main>
+      </div>
+    </section>
+
+    <section class="band closing" aria-labelledby="closing-title">
+      <div class="art grid" aria-hidden="true"></div>
+      <div class="wrap closing-layout">
+        <span class="register r1" aria-hidden="true"></span>
+        <span class="register r2" aria-hidden="true"></span>
+        <h2 id="closing-title">Try it on the change you are making today.</h2>
+        <p>
+          Install the CLI, run <code>dryfit init</code> in your library’s folder and link one app. When you are done,{' '}
+          <code>dryfit restore</code> leaves the app exactly as you found it.
+        </p>
+        <div class="closing-actions">
+          <div class="command" data-copy={install}>
+            <code><span class="prompt" aria-hidden="true">$</span> {install}</code>
+            <button type="button" class="copy">Copy</button>
+            <span class="copied" role="status"></span>
+          </div>
+          <a class="button ghost" href={docs('guides/getting-started')}>Read the guide</a>
+        </div>
+      </div>
+    </section>
 
     <footer class="foot">
-      <p>
-        dryfit is open source under the MIT license. Read <a href={`${repo}/tree/main/docs/adr`}>why it works the way it does</a>,
-        or <a href={repo}>see the code on GitHub</a>.
-      </p>
+      <div class="wrap">
+        <dl class="sheet-block">
+          <div class="sb-project">
+            <dt>Project</dt>
+            <dd>dryfit</dd>
+          </div>
+          <div>
+            <dt>Current version</dt>
+            <dd><a href={`${repo}/releases`}>{cli.version}</a></dd>
+          </div>
+          <div>
+            <dt>License</dt>
+            <dd>MIT, open source</dd>
+          </div>
+          <div>
+            <dt>Docs</dt>
+            <dd>
+              <a href={docs('guides/getting-started')}>Guides</a>, <a href={docs('reference/cli')}>CLI reference</a>
+            </dd>
+          </div>
+          <div>
+            <dt>Why it works this way</dt>
+            <dd><a href={`${repo}/tree/main/docs/adr`}>Design decisions</a></dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd><a href={repo}>GitHub</a></dd>
+          </div>
+        </dl>
+      </div>
     </footer>
 
     <script>
@@ -394,6 +563,7 @@ const steps = [
     --measure: 34rem;
     --gutter: clamp(1rem, 4vw, 3rem);
     --max: 78rem;
+    --cell: 24px;
     --ease: cubic-bezier(0.3, 0.7, 0.2, 1);
     color-scheme: light;
   }
@@ -434,6 +604,7 @@ const steps = [
     font: 400 1.0625rem/1.6 var(--sans);
     font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
   }
   a {
     color: inherit;
@@ -475,6 +646,9 @@ const steps = [
     font-weight: 650;
     line-height: 1.25;
   }
+  p {
+    text-wrap: pretty;
+  }
   .skip {
     position: absolute;
     left: -999px;
@@ -482,6 +656,7 @@ const steps = [
   .skip:focus {
     left: var(--gutter);
     top: 0.5rem;
+    z-index: 10;
     background: var(--sheet);
     padding: 0.5rem 0.75rem;
   }
@@ -495,12 +670,67 @@ const steps = [
     display: none;
   }
 
-  .bar,
-  main > section,
-  .foot {
+  /*
+   * Bands run the full width and carry the drawing surface; .wrap holds the content to the page's measure.
+   * Art sits behind the content in each band and never takes pointer events.
+   */
+  .band {
+    position: relative;
+    isolation: isolate;
+  }
+  .wrap {
     width: min(100%, var(--max));
     margin-inline: auto;
     padding-inline: var(--gutter);
+  }
+  .art {
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+  }
+  /* Drafting grid: a fine 24px grid with a heavier line every fifth cell, centered on the page. */
+  .grid {
+    inset: 0;
+    --minor: color-mix(in srgb, var(--grid) 55%, transparent);
+    --major: var(--grid);
+    background-image:
+      linear-gradient(var(--major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--major) 1px, transparent 1px),
+      linear-gradient(var(--minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--minor) 1px, transparent 1px);
+    background-size:
+      calc(var(--cell) * 5) calc(var(--cell) * 5),
+      calc(var(--cell) * 5) calc(var(--cell) * 5),
+      var(--cell) var(--cell),
+      var(--cell) var(--cell);
+    background-position: calc(50% + 0.5px) -1px;
+  }
+
+  /* Header and hero share one sheet: the grid starts under the ruler and fades out behind the pitch. */
+  .top .grid {
+    -webkit-mask-image: radial-gradient(ellipse 62% 78% at 74% 42%, #000 20%, transparent 78%);
+    mask-image: radial-gradient(ellipse 62% 78% at 74% 42%, #000 20%, transparent 78%);
+  }
+  @media (max-width: 64rem) {
+    .top .grid {
+      -webkit-mask-image: radial-gradient(ellipse 90% 45% at 50% 72%, #000 25%, transparent 80%);
+      mask-image: radial-gradient(ellipse 90% 45% at 50% 72%, #000 25%, transparent 80%);
+    }
+  }
+  /* A scale along the top edge of the page, its ticks on the grid's lines. */
+  .ruler {
+    inset: 0 0 auto;
+    height: 14px;
+    --tick: color-mix(in srgb, var(--pencil) 55%, transparent);
+    background-image:
+      linear-gradient(90deg, var(--tick) 1px, transparent 1px),
+      linear-gradient(90deg, var(--tick) 1px, transparent 1px);
+    background-size:
+      calc(var(--cell) * 5) 14px,
+      var(--cell) 6px;
+    background-repeat: repeat-x;
+    background-position: calc(50% + 0.5px) 0;
+    border-top: 3px solid var(--ink);
   }
 
   /* Header */
@@ -509,7 +739,7 @@ const steps = [
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding-block: 1.25rem;
+    padding-block: 1.75rem 1.25rem;
   }
   .mark {
     display: inline-flex;
@@ -555,7 +785,7 @@ const steps = [
   .hero {
     display: grid;
     gap: clamp(2.5rem, 6vw, 4.5rem);
-    padding-block: clamp(2rem, 7vw, 5.5rem) clamp(3.5rem, 8vw, 6.5rem);
+    padding-block: clamp(2rem, 7vw, 5rem) clamp(4rem, 9vw, 7rem);
     align-items: center;
   }
   @media (min-width: 64rem) {
@@ -563,12 +793,12 @@ const steps = [
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     }
   }
-  .eyebrow {
+  .kicker {
     margin: 0 0 1.25rem;
     color: var(--pencil);
     font-size: 0.9375rem;
     font-weight: 600;
-    letter-spacing: 0.01em;
+    max-width: 40ch;
   }
   h1 {
     font-size: clamp(3rem, 6.4vw, 5.5rem);
@@ -656,14 +886,11 @@ const steps = [
   .sheet {
     position: relative;
     padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 4vw, 2.75rem) clamp(1.25rem, 3vw, 2rem);
-    background-color: var(--sheet);
-    --grid-line: color-mix(in srgb, var(--grid) 60%, var(--sheet));
-    background-image:
-      linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 24px 24px;
-    background-position: -1px -1px;
+    background: var(--sheet);
     border: 1px solid var(--grid);
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--paper) 70%, transparent),
+      0 1.5rem 3rem -1.5rem color-mix(in srgb, var(--ink) 30%, transparent);
   }
   /* Crop marks at the sheet's corners. */
   .sheet::before,
@@ -675,14 +902,14 @@ const steps = [
     border: 0 solid var(--pencil);
   }
   .sheet::before {
-    top: -8px;
-    left: -8px;
+    top: -12px;
+    left: -12px;
     border-top-width: 1.5px;
     border-left-width: 1.5px;
   }
   .sheet::after {
-    bottom: -8px;
-    right: -8px;
+    bottom: -12px;
+    right: -12px;
     border-bottom-width: 1.5px;
     border-right-width: 1.5px;
   }
@@ -821,6 +1048,7 @@ const steps = [
     display: grid;
     grid-template-columns: repeat(3, auto);
     margin: 0;
+    background: var(--sheet);
     border: 1px solid var(--grid);
     font-size: 0.875rem;
   }
@@ -873,9 +1101,14 @@ const steps = [
     color: var(--on-ink);
     background: color-mix(in srgb, var(--ink) 85%, var(--paper));
   }
-  .restore {
-    background: transparent;
+  .restore,
+  .button.ghost {
+    background: var(--paper);
     color: var(--ink);
+  }
+  .button.ghost:hover {
+    color: var(--ink);
+    background: var(--sheet);
   }
   .restore:disabled {
     opacity: 0.4;
@@ -936,9 +1169,10 @@ const steps = [
   /* Sections after the hero */
   .shortfalls,
   .steps,
-  .menu {
-    padding-block: clamp(3.5rem, 9vw, 6rem);
-    border-top: 1px solid var(--grid);
+  .fits,
+  .menu,
+  .closing {
+    padding-block: clamp(4rem, 10vw, 7rem);
   }
   .section-head {
     display: grid;
@@ -954,7 +1188,7 @@ const steps = [
     max-width: 16ch;
   }
   .steps .section-head h2 {
-    max-width: 24ch;
+    max-width: 18ch;
   }
   .section-head p {
     margin: 0;
@@ -965,9 +1199,15 @@ const steps = [
     font-weight: 600;
   }
 
-  /* Where npm link falls short */
+  /*
+   * Where npm link falls short. The npm link column is hatched, as a drawing hatches material that is cut
+   * away; the dryfit column is tinted teal. The bands run unbroken from the header row to the last row.
+   */
+  .shortfalls {
+    border-top: 1px solid var(--grid);
+  }
   .rows {
-    margin-top: clamp(2rem, 5vw, 3rem);
+    margin-top: clamp(2.5rem, 5vw, 3.5rem);
   }
   .row {
     display: grid;
@@ -983,8 +1223,12 @@ const steps = [
     display: none;
     color: var(--pencil);
     font-size: 0.875rem;
-    padding-block: 0 0.75rem;
+    font-weight: 600;
+    padding-block: 0.75rem;
     border-top: 0;
+  }
+  .row-head .fitted {
+    color: var(--release);
   }
   .linked {
     color: var(--pencil);
@@ -1001,67 +1245,331 @@ const steps = [
     .row-head {
       display: grid;
     }
+    .linked,
+    .fitted {
+      position: relative;
+    }
+    .linked::before,
+    .fitted::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: -1.25rem -1.25rem calc(-1.25rem - 1px);
+    }
+    .row-head .linked::before,
+    .row-head .fitted::before {
+      inset-block: -0.75rem -0.75rem;
+    }
+    .linked::before {
+      background: repeating-linear-gradient(
+        -45deg,
+        color-mix(in srgb, var(--grid) 70%, transparent) 0 1px,
+        transparent 1px 9px
+      );
+    }
+    .fitted {
+      border-left: 0;
+      padding-left: 0;
+    }
+    .fitted::before {
+      background: color-mix(in srgb, var(--release) 7%, transparent);
+      border-left: 3px solid var(--release);
+    }
   }
 
-  /* Steps: a real sequence, so they are numbered. */
-  .steps ol {
+  /*
+   * Steps, on a blueprint: the band takes the dark palette in both themes. The steps are a real sequence,
+   * so they are numbered, and a route with an arrowhead runs through their markers.
+   */
+  .blueprint {
+    --paper: #10304d;
+    --sheet: #143a5c;
+    --ink: #eef5fa;
+    --pencil: #a9c0d3;
+    --grid: #2a5175;
+    --release: #3cc9b0;
+    --dev: #ff6fb2;
+    --on-ink: #10304d;
+    background: var(--paper);
+    color: var(--ink);
+    color-scheme: dark;
+  }
+  :root[data-theme='dark'] .blueprint {
+    --paper: #071624;
+    --sheet: #0c2133;
+    --grid: #183754;
+    --on-ink: #071624;
+  }
+  .blueprint .grid {
+    -webkit-mask-image: linear-gradient(#000 40%, transparent);
+    mask-image: linear-gradient(#000 40%, transparent);
+  }
+  .blueprint :focus-visible {
+    outline-color: var(--ink);
+  }
+  .route {
+    --node: 2.75rem;
+    position: relative;
     list-style: none;
-    margin: clamp(2rem, 5vw, 3rem) 0 0;
+    margin: clamp(2.5rem, 6vw, 4rem) 0 0;
     padding: 0;
     display: grid;
     gap: 2.5rem 2rem;
   }
-  @media (min-width: 48rem) {
-    .steps ol {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  /* The route: down the left on small screens, across the top on wide ones. */
+  .route::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--node) / 2);
+    bottom: 0;
+    left: calc(var(--node) / 2 - 1px);
+    border-left: 2px dashed var(--pencil);
   }
-  @media (min-width: 72rem) {
-    .steps ol {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
+  .route::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: calc(var(--node) / 2 - 6px);
+    border: 6px solid transparent;
+    border-top: 10px solid var(--pencil);
+    border-bottom: 0;
   }
-  .steps li {
+  .route li {
+    position: relative;
     display: grid;
     align-content: start;
     gap: 0.625rem;
-    padding-top: 1rem;
-    border-top: 2px solid var(--ink);
+    padding-left: calc(var(--node) + 1.25rem);
   }
-  .step-number {
-    font-size: 3.5rem;
-    font-weight: 300;
-    font-stretch: 75%;
-    line-height: 0.9;
+  .node {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: grid;
+    place-items: center;
+    width: var(--node);
+    height: var(--node);
+    border-radius: 50%;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    font-weight: 700;
+    font-size: 1.25rem;
     font-variant-numeric: tabular-nums;
-    color: var(--pencil);
   }
-  .steps li code {
+  .route li:nth-child(3) .node {
+    border-color: var(--dev);
+    color: var(--dev);
+  }
+  .route li:last-child .node {
+    border-color: var(--release);
+    color: var(--release);
+  }
+  .route h3 {
+    min-height: var(--node);
+    display: flex;
+    align-items: center;
+  }
+  .route code {
     justify-self: start;
     max-width: 100%;
     overflow-x: auto;
     white-space: nowrap;
-    padding: 0.25rem 0.5rem;
-    border-radius: 3px;
+    padding: 0.3125rem 0.625rem;
+    border-radius: 4px;
     background: var(--sheet);
     border: 1px solid var(--grid);
   }
-  .steps li:nth-child(3) code {
+  .route code.dev {
     color: var(--dev);
+    border-color: color-mix(in srgb, var(--dev) 45%, var(--grid));
   }
-  .steps p {
+  .route p {
     margin: 0;
     color: var(--pencil);
   }
+  @media (min-width: 72rem) {
+    .route {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .route::before {
+      left: calc(var(--node) / 2);
+      right: 0;
+      bottom: auto;
+      border-left: 0;
+      border-top: 2px dashed var(--pencil);
+      top: calc(var(--node) / 2 - 1px);
+    }
+    .route::after {
+      left: auto;
+      right: -2px;
+      bottom: auto;
+      top: calc(var(--node) / 2 - 6px);
+      border: 6px solid transparent;
+      border-left: 10px solid var(--pencil);
+      border-right: 0;
+    }
+    .route li {
+      padding-left: 0;
+      padding-top: calc(var(--node) + 1.25rem);
+    }
+    .route h3 {
+      min-height: 0;
+    }
+  }
 
-  /* Menu bar app */
-  .menu {
+  /* What it fits: a parts list, with the exploded package drawn behind the section's heading. */
+  .fits {
+    overflow: hidden;
+  }
+  .exploded {
+    top: clamp(1rem, 4vw, 3rem);
+    right: max(-6rem, calc((100vw - var(--max)) / 2 - 4rem));
+    width: clamp(18rem, 34vw, 30rem);
+    height: auto;
+    opacity: 0.9;
+  }
+  .exploded path {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .exploded .hidden-edges path {
+    stroke: var(--grid);
+    stroke-dasharray: 6 5;
+  }
+  .exploded .body-edges path {
+    stroke: color-mix(in srgb, var(--pencil) 55%, transparent);
+  }
+  .exploded .lid-edges path {
+    stroke: color-mix(in srgb, var(--dev) 60%, transparent);
+  }
+  .exploded .lid-edges .tape {
+    stroke: color-mix(in srgb, var(--dev) 30%, transparent);
+  }
+  .exploded .assembly path {
+    stroke: color-mix(in srgb, var(--dev) 55%, transparent);
+    stroke-dasharray: 4 5;
+  }
+  .exploded .assembly .tip {
+    fill: color-mix(in srgb, var(--dev) 55%, transparent);
+    stroke: none;
+  }
+  .exploded .dims path {
+    stroke: color-mix(in srgb, var(--release) 60%, transparent);
+    stroke-width: 1.25;
+  }
+  .exploded text {
+    fill: color-mix(in srgb, var(--release) 80%, transparent);
+    font: 400 15px var(--mono);
+    text-anchor: middle;
+  }
+  .fits .section-head {
+    max-width: 52rem;
+    grid-template-columns: none;
+  }
+  .fits .section-head h2 {
+    max-width: 14ch;
+  }
+  .fits .section-head p {
+    max-width: var(--measure);
+  }
+  @media (max-width: 56rem) {
+    .exploded {
+      opacity: 0.35;
+      top: 0;
+      right: -6rem;
+    }
+  }
+  .parts {
+    margin-top: clamp(2.5rem, 5vw, 3.5rem);
+    background: var(--sheet);
+    border: 1.5px solid var(--ink);
+  }
+  .parts-row {
+    display: grid;
+    gap: 0.625rem;
+    padding: 1.125rem 1.25rem;
+  }
+  .parts-row + .parts-row {
+    border-top: 1px solid var(--grid);
+  }
+  .parts-head {
+    display: none;
+    color: var(--pencil);
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding-block: 0.625rem;
+  }
+  .parts-row h3 {
+    font-size: 1.0625rem;
+  }
+  .names {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    align-content: start;
+  }
+  .names li {
+    padding: 0.125rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid var(--grid);
+    border-radius: 3px;
+    background: var(--paper);
+    white-space: nowrap;
+  }
+  .parts-row p {
+    margin: 0;
+    color: var(--pencil);
+    max-width: 46ch;
+  }
+  .parts-row p a {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  @media (min-width: 56rem) {
+    .parts-row {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 2rem;
+      align-items: baseline;
+    }
+    .parts-head {
+      display: grid;
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .parts-head + .parts-row {
+      border-top: 0;
+    }
+  }
+
+  /* Menu bar app, on a desk: a dot grid like a cutting mat, lit from behind the screenshots. */
+  .desk-band {
+    border-top: 1px solid var(--grid);
+    background: radial-gradient(
+      ellipse 50% 60% at 68% 50%,
+      color-mix(in srgb, var(--release) 10%, var(--paper)),
+      var(--paper) 70%
+    );
+  }
+  .dots {
+    inset: 0;
+    background-image: radial-gradient(color-mix(in srgb, var(--pencil) 45%, transparent) 1px, transparent 1.5px);
+    background-size: var(--cell) var(--cell);
+    background-position: calc(50% + 0.5px) 0;
+    -webkit-mask-image: radial-gradient(ellipse 60% 75% at 68% 50%, #000 30%, transparent 85%);
+    mask-image: radial-gradient(ellipse 60% 75% at 68% 50%, #000 30%, transparent 85%);
+  }
+  .menu-layout {
     display: grid;
     gap: 3rem;
     align-items: center;
   }
   @media (min-width: 56rem) {
-    .menu {
+    .menu-layout {
       grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     }
   }
@@ -1136,10 +1644,99 @@ const steps = [
     border-radius: 14px;
   }
 
-  .foot {
-    padding-block: 2rem 3rem;
+  /* The closing call, framed by registration marks on the grid. */
+  .closing {
     border-top: 1px solid var(--grid);
+  }
+  .closing .grid {
+    -webkit-mask-image: radial-gradient(ellipse 55% 85% at 30% 50%, #000 10%, transparent 75%);
+    mask-image: radial-gradient(ellipse 55% 85% at 30% 50%, #000 10%, transparent 75%);
+  }
+  .closing-layout {
+    position: relative;
+    padding-block: 1rem;
+  }
+  .closing h2 {
+    font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+    max-width: 14ch;
+  }
+  .closing p {
+    max-width: var(--measure);
+    margin: 1.5rem 0 2rem;
     color: var(--pencil);
+    font-size: 1.125rem;
+  }
+  .closing p code {
+    color: var(--ink);
+  }
+  .closing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+  /* A registration mark: a circle on crosshairs, as printed at a sheet's margins. */
+  .register {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    background:
+      linear-gradient(var(--pencil), var(--pencil)) center / 1.5px 100% no-repeat,
+      linear-gradient(var(--pencil), var(--pencil)) center / 100% 1.5px no-repeat;
+    opacity: 0.6;
+  }
+  .register::after {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    border: 1.5px solid var(--pencil);
+    border-radius: 50%;
+  }
+  .r1 {
+    top: -2rem;
+    right: var(--gutter);
+  }
+  .r2 {
+    bottom: -2rem;
+    right: calc(var(--gutter) + 4rem);
+  }
+  @media (max-width: 40rem) {
+    .register {
+      display: none;
+    }
+  }
+
+  /* The footer is a drawing's title block. */
+  .foot {
+    padding-block: 0 3rem;
+  }
+  .sheet-block {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    margin: 0;
+    border: 1.5px solid var(--ink);
+    background: var(--sheet);
     font-size: 0.9375rem;
+  }
+  .sheet-block > div {
+    padding: 0.625rem 0.875rem 0.75rem;
+    min-width: 0;
+    box-shadow:
+      1px 0 0 var(--grid),
+      0 1px 0 var(--grid);
+  }
+  .sheet-block dt {
+    color: var(--pencil);
+    font-size: 0.8125rem;
+  }
+  .sheet-block dd {
+    margin: 0;
+    font-weight: 600;
+  }
+  .sb-project dd {
+    font-size: 1.375rem;
+    font-weight: 700;
+    font-stretch: 80%;
+    line-height: 1.2;
   }
 </style>

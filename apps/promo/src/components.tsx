@@ -1,13 +1,5 @@
 import type React from 'react';
-import {
-  Easing,
-  Img,
-  interpolate,
-  spring,
-  staticFile,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
+import { Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { color, font } from './theme';
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
@@ -263,7 +255,11 @@ export const AppStills: React.FC<{
 };
 
 /** The macOS arrow, gliding between keys, with a ring at each click. */
-const Cursor: React.FC<{ keys: CursorKey[]; clicks: number[]; scale: number }> = ({ keys, clicks, scale }) => {
+const Cursor: React.FC<{ keys: CursorKey[]; clicks: number[]; scale: number }> = ({
+  keys,
+  clicks,
+  scale,
+}) => {
   const frame = useCurrentFrame();
   const frames = keys.map((key) => key.at);
   const along = (values: number[]) =>
@@ -298,6 +294,7 @@ const Cursor: React.FC<{ keys: CursorKey[]; clicks: number[]; scale: number }> =
         ) : null;
       })}
       <svg
+        aria-hidden="true"
         width={30}
         height={44}
         viewBox="0 0 15 22"
@@ -311,7 +308,12 @@ const Cursor: React.FC<{ keys: CursorKey[]; clicks: number[]; scale: number }> =
           filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.45))',
         }}
       >
-        <path d="M1.5 1.5v16.2l4-3.9 2.6 6.1 2.6-1.1-2.6-6h5.6z" fill="#111" stroke="#fff" strokeWidth={1.4} />
+        <path
+          d="M1.5 1.5v16.2l4-3.9 2.6 6.1 2.6-1.1-2.6-6h5.6z"
+          fill="#111"
+          stroke="#fff"
+          strokeWidth={1.4}
+        />
       </svg>
     </>
   );

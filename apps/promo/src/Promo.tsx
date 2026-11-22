@@ -10,7 +10,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { AppRecording, ease, Headline, type Line, Pill, SceneFade, Terminal, Window } from './components';
+import { AppStills, ease, Headline, type Line, Pill, SceneFade, Terminal, Window } from './components';
 import { color, font, SCENES, s, VO } from './theme';
 
 export const Promo: React.FC = () => (
@@ -192,8 +192,25 @@ const Link: React.FC<{ duration: number }> = ({ duration }) => {
         </div>
       </Center>
       <Sequence from={handoff} durationInFrames={duration - handoff}>
-        <Center top={176}>
-          <AppRecording src="r1-link.mov" from={1.3} rate={1.45} />
+        <Center top={170}>
+          <AppStills
+            stills={[
+              { src: 'ui/link-0.png', at: 0 },
+              { src: 'ui/link-0b.png', at: 28 },
+              { src: 'ui/link-1.png', at: 46 },
+              { src: 'ui/link-1b.png', at: 64 },
+              { src: 'ui/link-2.png', at: 82 },
+            ]}
+            cursor={[
+              { at: 8, x: 1500, y: 880 },
+              { at: 26, x: 1872, y: 466 },
+              { at: 46, x: 1872, y: 466 },
+              { at: 62, x: 1872, y: 565 },
+              { at: 84, x: 1872, y: 565 },
+              { at: 104, x: 1640, y: 840 },
+            ]}
+            clicks={[28, 64]}
+          />
         </Center>
       </Sequence>
     </>
@@ -239,12 +256,19 @@ const Watch: React.FC<{ duration: number }> = ({ duration }) => {
         />
       </AbsoluteFill>
       <Sequence from={handoff} durationInFrames={duration - handoff}>
-        <Center top={176}>
-          <AppRecording
-            src="r2-watch.mov"
-            from={4.6}
-            rate={1.25}
-            zoom={{ at: 26, scale: 1.5, originX: 0.72, originY: 0.06 }}
+        <Center top={170}>
+          <AppStills
+            stills={[
+              { src: 'ui/watch-a.png', at: 0 },
+              { src: 'ui/watch-b.png', at: 24 },
+              { src: 'ui/watch-c.png', at: 46 },
+              { src: 'ui/watch-d.png', at: 70 },
+            ]}
+            flashes={[
+              { at: 24, x: 640, y: 92, w: 580, h: 46 },
+              { at: 46, x: 1420, y: 334, w: 240, h: 56 },
+              { at: 70, x: 1420, y: 442, w: 240, h: 56 },
+            ]}
           />
         </Center>
       </Sequence>
@@ -340,7 +364,7 @@ const Menu: React.FC<{ duration: number }> = () => {
   return (
     <>
       <Img
-        src={staticFile('real-linked.png')}
+        src={staticFile('ui/watch-d.png')}
         style={{
           position: 'absolute',
           width: 1500,
@@ -397,7 +421,7 @@ const Menu: React.FC<{ duration: number }> = () => {
         <span>23:04</span>
       </div>
       <Img
-        src={staticFile('linked-menu.png')}
+        src={staticFile('ui/menu.png')}
         style={{
           position: 'absolute',
           top: 62,
@@ -438,8 +462,25 @@ const Menu: React.FC<{ duration: number }> = () => {
 const Restore: React.FC<{ duration: number }> = () => (
   <>
     <Headline text="Back exactly as it was" delay={2} />
-    <Center top={168}>
-      <AppRecording src="r3-restore.mov" from={1.0} rate={1.45} width={1240} />
+    <Center top={170}>
+      <AppStills
+        stills={[
+          { src: 'ui/watch-d.png', at: 0 },
+          { src: 'ui/restore-1.png', at: 28 },
+          { src: 'ui/restore-2.png', at: 46 },
+          { src: 'ui/restore-2b.png', at: 62 },
+          { src: 'ui/restore-3.png', at: 78 },
+        ]}
+        cursor={[
+          { at: 6, x: 1500, y: 840 },
+          { at: 26, x: 1852, y: 470 },
+          { at: 44, x: 1852, y: 470 },
+          { at: 60, x: 1852, y: 362 },
+          { at: 80, x: 1852, y: 362 },
+          { at: 96, x: 1640, y: 760 },
+        ]}
+        clicks={[28, 62]}
+      />
     </Center>
     <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 40 }}>
       <div style={{ position: 'relative', width: 0, height: 70 }}>
@@ -512,7 +553,7 @@ const End: React.FC<{ duration: number }> = () => {
           opacity: cmd,
         }}
       >
-        <span style={{ color: color.faint }}>$ </span>npx @dryfit/cli init
+        <span style={{ color: color.faint }}>$ </span>npm i -g @dryfit/cli
       </div>
       <div
         style={{

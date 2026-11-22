@@ -7,7 +7,8 @@ On macOS, dryfit has an app: a menu in the menu bar for what you do all day, and
 things up. Everything the CLI does day to day can be done there, without a terminal. It needs macOS 26
 or newer and talks to the same background service as the CLI, so you can use both.
 
-![The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below](/dryfit/menu/window-library.light.png)
+<img class="dark:sl-hidden" src="/dryfit/menu/window-library.light.png" width="1000" height="690" alt="The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below" />
+<img class="light:sl-hidden" src="/dryfit/menu/window-library.dark.png" width="1000" height="690" alt="The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below" />
 
 ## The window
 
@@ -42,7 +43,8 @@ through three steps: choose the folders where your apps live, add a library, and
 
 ## The menu
 
-![The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group](/dryfit/menu/online.light.png)
+<img class="dark:sl-hidden" src="/dryfit/menu/online.light.png" width="372" height="523" alt="The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group" />
+<img class="light:sl-hidden" src="/dryfit/menu/online.dark.png" width="372" height="523" alt="The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group" />
 
 From the menu you can:
 

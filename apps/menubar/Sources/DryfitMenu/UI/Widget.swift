@@ -10,6 +10,10 @@ public struct MenuContent: View {
   let navigation: AppNavigation
   let actions: MenuActions
   @Environment(\.openWindow) private var openWindow
+  /// The library whose link picker is open. Held here, not in each card, because every layout
+  /// `ViewThatFits` tries has cards of its own: a picker open in one that no longer fits must still be
+  /// closable from the one shown.
+  @State private var pickingLibrary: String?
 
   public init(model: MenuModel, navigation: AppNavigation = AppNavigation(), actions: MenuActions) {
     self.model = model
@@ -29,6 +33,8 @@ public struct MenuContent: View {
     .font(Theme.body)
     .foregroundStyle(Theme.text)
     .frame(width: 372)
+    // The mockup's `.panel`, not the system's Liquid Glass: a near-opaque surface over a plain blur.
+    .background(PanelSurface())
     .onAppear { model.menuOpened() }
     // The rest of what the old footer menu held is on the menu bar icon's right-click menu. These keep
     // its shortcuts working while the window is open.
@@ -50,10 +56,19 @@ public struct MenuContent: View {
   private var fits: [Fit] {
     guard model.connection == .online else { return [Fit()] }
     let libraries = model.libraries.count, groups = model.groups.count
-    var result = [Fit(), Fit(folded: true)]
-    for hidden in stride(from: 1, through: max(libraries - 1, 0), by: 1) { result.append(Fit(folded: true, hiddenLibraries: hidden)) }
-    for hidden in stride(from: 1, through: groups, by: 1) { result.append(Fit(folded: true, hiddenLibraries: max(libraries - 1, 0), hiddenGroups: hidden)) }
-    return result
+    var squeezed = [Fit(folded: true)]
+    for hidden in stride(from: 1, through: max(libraries - 1, 0), by: 1) { squeezed.append(Fit(folded: true, hiddenLibraries: hidden)) }
+    for hidden in stride(from: 1, through: groups, by: 1) { squeezed.append(Fit(folded: true, hiddenLibraries: max(libraries - 1, 0), hiddenGroups: hidden)) }
+    // With a link picker open, the same steps with that library still shown, and open, come first:
+    // leaving the libraries after it and the groups to the window for a moment beats hiding the picker
+    // the person just opened.
+    var picking: [Fit] = []
+    if let pickingLibrary, let index = model.libraries.firstIndex(where: { $0.library.name == pickingLibrary }) {
+      let most = libraries - 1 - index
+      picking = (0...most).map { Fit(folded: true, open: pickingLibrary, hiddenLibraries: $0) }
+        + stride(from: 1, through: groups, by: 1).map { Fit(folded: true, open: pickingLibrary, hiddenLibraries: most, hiddenGroups: $0) }
+    }
+    return [Fit()] + picking + squeezed
   }
 
   private func panel(_ fit: Fit) -> some View {
@@ -64,7 +79,7 @@ public struct MenuContent: View {
       PanelHeader(model: model) { show(nil) }
       switch model.connection {
       case .online:
-        OnlineContent(model: model, actions: actions, fit: fit, show: show, addLibrary: addLibrary)
+        OnlineContent(model: model, actions: actions, fit: fit, pickingLibrary: $pickingLibrary, show: show, addLibrary: addLibrary)
       case .offline, .starting:
         Unavailable(model: model, actions: actions)
       case .connecting:
@@ -89,6 +104,31 @@ public struct MenuContent: View {
     navigation.wantsNewLibrary = true
     show(nil)
   }
+}
+
+// MARK: Surface
+
+/// The mockup's `.panel` background: `Theme.glass` (82% white or charcoal) over a blur of what is behind
+/// the window, so the panel reads as one solid surface in light and dark rather than as Liquid Glass.
+private struct PanelSurface: View {
+  var body: some View {
+    ZStack {
+      BehindWindowBlur()
+      Theme.glass
+    }
+  }
+}
+
+private struct BehindWindowBlur: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSVisualEffectView {
+    let view = NSVisualEffectView()
+    view.material = .popover
+    view.blendingMode = .behindWindow
+    view.state = .active
+    return view
+  }
+
+  func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 // MARK: Header, foot
@@ -201,15 +241,18 @@ private struct Room: Layout {
 /// How much of the window's list is shown (see `MenuContent.body`).
 private struct Fit: Identifiable {
   var folded = false
+  /// A library left open when the rest are folded.
+  var open: String?
   var hiddenLibraries = 0
   var hiddenGroups = 0
-  var id: String { "\(folded)/\(hiddenLibraries)/\(hiddenGroups)" }
+  var id: String { "\(folded)/\(open ?? "")/\(hiddenLibraries)/\(hiddenGroups)" }
 }
 
 private struct OnlineContent: View {
   let model: MenuModel
   let actions: MenuActions
   var fit = Fit()
+  @Binding var pickingLibrary: String?
   let show: (SidebarItem?) -> Void
   let addLibrary: () -> Void
 
@@ -272,7 +315,7 @@ private struct OnlineContent: View {
         }
       }
       ForEach(model.libraries.dropLast(fit.hiddenLibraries)) { row in
-        LibraryCard(row: row, model: model, actions: actions, squeezed: fit.folded) { show(.library(row.library.name)) }
+        LibraryCard(row: row, model: model, actions: actions, squeezed: fit.folded && fit.open != row.library.name, pickingLibrary: $pickingLibrary) { show(.library(row.library.name)) }
       }
       if fit.hiddenLibraries > 0 { MoreInWindow(count: fit.hiddenLibraries, noun: "librar", plural: "ies", singular: "y") { show(nil) } }
       if !model.groups.isEmpty, fit.hiddenGroups < model.groups.count {
@@ -423,10 +466,10 @@ private struct LibraryCard: View {
   let actions: MenuActions
   /// Folded to make the window fit, whatever the person chose.
   var squeezed = false
+  @Binding var pickingLibrary: String?
   let open: () -> Void
   /// Folded libraries, by name, one per line; kept between launches.
   @AppStorage("foldedLibraries") private var folded = ""
-  @State private var picking = false
   @Environment(\.timeZone) private var timeZone
 
   /// More linked apps than this are left to the window, which has room for them.
@@ -435,8 +478,15 @@ private struct LibraryCard: View {
   var body: some View {
     let candidates = model.linkCandidates(for: name)
     VStack(alignment: .leading, spacing: 0) {
-      header
-      summary(candidates: candidates.count)
+      HStack(alignment: .top, spacing: 0) {
+        foldButton
+        VStack(alignment: .leading, spacing: 0) {
+          header
+          summary(candidates: candidates.count)
+        }
+      }
+      // So the fold column is as tall as the name and summary beside it.
+      .fixedSize(horizontal: false, vertical: true)
       if !showsFolded {
         ForEach(shownLinks) { link in
           Hair()
@@ -458,23 +508,49 @@ private struct LibraryCard: View {
         linkFooter(candidates)
       }
     }
-    .card(radius: Theme.widgetCardRadius)
+    .card(radius: Theme.widgetCardRadius, fill: Theme.widgetCard)
   }
 
   private var name: String { row.library.name }
 
+  /// The chevron, and with it the whole left gutter of the card beside the name and summary: the
+  /// chevron alone is too small to hit. It works while the window is squeezed too (see `unfold`).
+  private var foldButton: some View {
+    Button {
+      withAnimation(.snappy) { showsFolded ? unfold() : fold() }
+    } label: {
+      Icon(kind: .chevron, size: 16, color: Theme.muted)
+        .rotationEffect(.degrees(showsFolded ? 0 : 90))
+        .frame(width: 16, height: 19.6)
+        .padding(.top, 11)
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(showsFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
+  }
+
+  private func fold() {
+    isFolded = true
+    if picking { picking = false }
+  }
+
+  /// Opens this card. While the window is squeezed, the cards left open (or an open link picker) are
+  /// what made it too tall, so this card opens alone: the others fold and the picker closes. Otherwise
+  /// the window would stay squeezed and the click would change nothing.
+  private func unfold() {
+    if squeezed {
+      folded = model.libraries.map(\.library.name).filter { $0 != name }.joined(separator: "\n")
+      pickingLibrary = nil
+    } else {
+      isFolded = false
+    }
+  }
+
   private var header: some View {
     HStack(spacing: 8) {
-      Button {
-        withAnimation(.snappy) { isFolded.toggle() }
-      } label: {
-        Icon(kind: .chevron, size: 16, color: Theme.muted)
-          .rotationEffect(.degrees(showsFolded ? 0 : 90))
-          .frame(width: 16, height: 19.6).contentShape(.rect)
-      }
-      .buttonStyle(.plain)
-      .disabled(squeezed)
-      .accessibilityLabel(showsFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
       Button(action: open) {
         Text(name).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle).lh(14)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -488,7 +564,8 @@ private struct LibraryCard: View {
         .disabled(model.isBusy(.watch(name)))
         .help(row.library.isWatched ? "Auto-sync is on: every change you save is synced" : "Auto-sync: sync every change you save")
     }
-    .padding(.horizontal, 12)
+    .padding(.leading, 2)
+    .padding(.trailing, 12)
     .padding(.top, 11)
     .padding(.bottom, 4)
   }
@@ -517,7 +594,7 @@ private struct LibraryCard: View {
     .font(Theme.small)
     .foregroundStyle(Theme.muted)
     .lineLimit(1)
-    .padding(.leading, 36)
+    .padding(.leading, 2)
     .padding(.trailing, 12)
     .padding(.bottom, 9)
   }
@@ -568,6 +645,12 @@ private struct LibraryCard: View {
   }
 
   private var showsFolded: Bool { squeezed || isFolded }
+
+  /// Whether this card's link picker is open.
+  private var picking: Bool {
+    get { pickingLibrary == name }
+    nonmutating set { pickingLibrary = newValue ? name : (pickingLibrary == name ? nil : pickingLibrary) }
+  }
 
   private var isFolded: Bool {
     get { folded.split(separator: "\n").contains { $0 == name } }
@@ -747,7 +830,7 @@ private struct GroupCard: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .card(radius: Theme.widgetCardRadius)
+    .card(radius: Theme.widgetCardRadius, fill: Theme.widgetCard)
   }
 
   private var apps: String { group.consumers.map(projectName).joined(separator: ", ") }

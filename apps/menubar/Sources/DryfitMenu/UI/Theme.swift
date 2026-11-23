@@ -25,8 +25,11 @@ enum Theme {
   static let cardBorder = color(0x000000, 0xffffff, light: 0.08, dark: 0.08)
   static let hairline = color(0x000000, 0xffffff, light: 0.08, dark: 0.09)
   static let code = color(0xf3f3f5, 0x19191b)
-  /// The panel of the menu bar window, drawn under the cards where the system gives none.
+  /// The panel of the menu bar window, drawn over the system's Liquid Glass so it reads as the mockup's.
   static let glass = color(0xffffff, 0x28282c, light: 0.82, dark: 0.82)
+  /// A card on that panel. The window's dark card grey is too close to the dark panel to stand apart,
+  /// so the widget's cards are a step lighter there; in light they stay white.
+  static let widgetCard = color(0xffffff, 0x37373c)
 
   // Text
   static let text = color(0x1c1c1e, 0xf4f4f6)

@@ -19,7 +19,8 @@ import Testing
     install: @escaping @MainActor () async throws -> Void = {},
     appVersion: String? = nil,
     update: (@MainActor () async throws -> Void)? = nil,
-    startAtLogin: StartAtLogin? = nil
+    startAtLogin: StartAtLogin? = nil,
+    devServers: DevServers = DevServers { _ in [] }
   ) -> MenuModel {
     let daemon = daemon
     return MenuModel(
@@ -30,6 +31,7 @@ import Testing
       update: update,
       startAtLogin: startAtLogin,
       notifier: notifier,
+      devServers: devServers,
       sleep: { _ in try await Task.sleep(for: .milliseconds(2)) }
     )
   }
@@ -220,8 +222,36 @@ import Testing
     await eventually { model.activity == "Restored @acme/ui in shop" }
   }
 
-  @Test func asksForADevServerRestartAfterCachesAreClearedUntilTheUserSaysSoOrTheAppIsPutBack() async {
-    let model = makeModel()
+  /// The dev servers running in each app, by folder.
+  @MainActor final class Servers {
+    var running: [String: [DevServer]] = [:]
+    var finder: DevServers { DevServers { [unowned self] in running[$0] ?? [] } }
+  }
+
+  @Test func asksForADevServerRestartOnlyWhileOneFromBeforeTheInstallRuns() async {
+    let servers = Servers()
+    let model = makeModel(devServers: servers.finder)
+    let task = await started(model)
+    defer { task.cancel() }
+
+    // Nothing running: the next start loads the new build.
+    daemon.channel.send(.cachesCleared(consumer: shop, paths: [".angular/cache"]), id: 1)
+    await eventually { model.lastEventID == 1 }
+    #expect(model.restartNeeded.isEmpty)
+
+    servers.running[shop] = [DevServer(pid: 41, started: .now.addingTimeInterval(-60))]
+    daemon.channel.send(.cachesCleared(consumer: shop, paths: [".angular/cache"]), id: 2)
+    await eventually { model.restartNeeded == [shop] }
+
+    // The user restarts it: a new process, started after the install.
+    servers.running[shop] = [DevServer(pid: 42, started: .now.addingTimeInterval(1))]
+    await eventually { model.restartNeeded.isEmpty }
+  }
+
+  @Test func dropsTheRestartHintWhenTheServerStopsTheUserSaysSoOrTheAppIsPutBack() async {
+    let servers = Servers()
+    servers.running[shop] = [DevServer(pid: 41, started: .now.addingTimeInterval(-60))]
+    let model = makeModel(devServers: servers.finder)
     let task = await started(model)
     defer { task.cancel() }
 
@@ -237,6 +267,23 @@ import Testing
     #expect(model.restartNeeded == [shop])
     daemon.channel.send(.consumerRestored(consumer: shop, library: nil, ok: true), id: 4)
     await eventually { model.restartNeeded.isEmpty }
+
+    daemon.channel.send(.cachesCleared(consumer: shop, paths: [".angular/cache"]), id: 5)
+    await eventually { model.restartNeeded == [shop] }
+    servers.running[shop] = []
+    await eventually { model.restartNeeded.isEmpty }
+  }
+
+  @Test func timesAClearingByTheDaemonsClockSoAReplayedOneIsNotNew() async {
+    let servers = Servers()
+    // Restarted ten minutes ago, after the install the replayed event reports.
+    servers.running[shop] = [DevServer(pid: 41, started: .now.addingTimeInterval(-600))]
+    let model = makeModel(devServers: servers.finder)
+    model.handle(ServerEvent(
+      id: 1, at: Date.now.addingTimeInterval(-3600).formatted(.iso8601), kind: .cachesCleared(consumer: shop, paths: [])))
+    #expect(model.restartNeeded.isEmpty)
+    model.handle(ServerEvent(id: 2, at: "2099-01-01T00:00:00.000Z", kind: .cachesCleared(consumer: shop, paths: [])))
+    #expect(model.restartNeeded == [shop])
   }
 
   @Test func startsDryfitAtLogin_andKeepsItRunningWhenTurnedOff() async {

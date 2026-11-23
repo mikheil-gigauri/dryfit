@@ -207,7 +207,8 @@ private struct PanelFoot: View {
         Button(action: showSettings) {
           Icon(kind: .gear, size: 15, color: Theme.faint)
             .padding(2)
-            .contentShape(.rect)
+            // About 28pt to click without making the foot any taller.
+            .contentShape(.rect.inset(by: -5))
         }
         .buttonStyle(.plain)
         .help("Settings (⌘,)")
@@ -690,7 +691,8 @@ private struct LinkRow: View {
           .disabled(model.isRestoring(link.consumer))
           .help("Put \(projectName(link.consumer)) back on the release of \(link.library)")
       } else if needsRestart {
-        // The words say it; the amber is only a mark. Done clears the hint once the server is restarted.
+        // The words say it; the amber is only a mark. The hint clears when the server restarts; Done is
+        // for one that reloaded by itself.
         Button("Done") { model.restarted(link.consumer) }.buttonStyle(.flat(small: true)).help(restartHelp)
       }
       MoreMenu(label: "More for \(projectName(link.consumer))") {
@@ -736,7 +738,7 @@ private struct LinkRow: View {
   }
 
   private var restartHelp: String {
-    "\(shortVersion(link.detail(timeZone: timeZone))) is installed, and dryfit cleared \(projectName(link.consumer))’s caches. A running dev server shows it only after a restart. Click once you have."
+    "\(shortVersion(link.detail(timeZone: timeZone))) is installed, but \(projectName(link.consumer))’s dev server was already running and still serves the old build. This goes away once it restarts. Click if it reloaded by itself."
   }
 }
 

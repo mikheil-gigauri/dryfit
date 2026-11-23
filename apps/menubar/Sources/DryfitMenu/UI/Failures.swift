@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The failures this session, with each one's full output: what a notification opens.
+/// The failures this session, with each one's full output: what a notification opens. Drawn from the
+/// mockup's `.fw`: a list of them on the left when there are several, the output of the chosen one.
 public struct FailureView: View {
   let failures: [Failure]
   @Binding var selection: Failure.ID?
@@ -18,34 +19,63 @@ public struct FailureView: View {
 
   public var body: some View {
     HStack(spacing: 0) {
-      if failures.count > 1 {
-        // The system's source list: selection, ↑ and ↓, and type-to-select come with it.
-        List(selection: $selection) {
-          ForEach(failures) { failure in
-            HStack(alignment: .top, spacing: 8) {
-              StatusIcon(condition: .failed, size: 13).padding(.top, 1)
-              VStack(alignment: .leading, spacing: 1) {
-                Text(failure.title).font(DS.rowTitle).lineLimit(2)
-                Text(failure.date, format: .dateTime.hour().minute()).font(DS.caption).foregroundStyle(.secondary)
-              }
-            }
-            .padding(.vertical, 2)
-            .tag(failure.id)
-          }
-        }
-        .listStyle(.sidebar)
-        .frame(width: 210)
-        .onAppear { if selection == nil { selection = failures.first?.id } }
-        Divider()
-      }
+      if failures.count > 1 { list }
       if let failure = selected {
         Detail(failure: failure, openLibrary: openLibrary)
       } else {
-        Text("No failures").foregroundStyle(DS.muted).frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+          Text("✓").font(.system(size: 26)).foregroundStyle(Theme.ok)
+          Text("No failures").font(Theme.bodySemibold).foregroundStyle(Theme.text).padding(.top, 8)
+          Text("Everything dryfit ran this session worked.").foregroundStyle(Theme.muted)
+        }
+        .lh(13)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
-    .font(DS.body)
+    .font(Theme.body)
+    .foregroundStyle(Theme.text)
     .frame(minWidth: 520, minHeight: 320)
+    .background(Theme.window)
+    .onAppear { if selection == nil { selection = failures.first?.id } }
+  }
+
+  private var list: some View {
+    ScrollView {
+      VStack(spacing: 0) {
+        ForEach(failures) { failure in
+          let chosen = failure.id == selected?.id
+          HStack(alignment: .top, spacing: 8) {
+            StatusGlyph(kind: .failed, size: 14).padding(.top, 1)
+            VStack(alignment: .leading, spacing: 0) {
+              Text(failure.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(2).lh(12.5)
+              Text(failure.date, format: .dateTime.hour().minute()).font(.system(size: 11.5)).foregroundStyle(Theme.muted).lh(11.5)
+            }
+            Spacer(minLength: 0)
+          }
+          .padding(.horizontal, 10)
+          .padding(.vertical, 6)
+          .background(chosen ? Theme.selection : .clear, in: .rect(cornerRadius: 8))
+          .contentShape(.rect(cornerRadius: 8))
+          .onTapGesture { selection = failure.id }
+          .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+        }
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 12)
+    }
+    .frame(width: 230)
+    .background(Theme.sidebar)
+    .overlay(alignment: .trailing) { Rectangle().fill(Theme.hairline).frame(width: 1) }
+    .focusable()
+    .focusEffectDisabled()
+    .onKeyPress(.upArrow) { step(-1) }
+    .onKeyPress(.downArrow) { step(1) }
+  }
+
+  private func step(_ offset: Int) -> KeyPress.Result {
+    guard let current = failures.firstIndex(where: { $0.id == selected?.id }) else { return .ignored }
+    selection = failures[min(max(current + offset, 0), failures.count - 1)].id
+    return .handled
   }
 
   private var selected: Failure? {
@@ -60,41 +90,38 @@ private struct Detail: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 8) {
-        StatusIcon(condition: .failed)
-        Text(failure.title).font(DS.headline).lineLimit(2)
-        Spacer(minLength: 8)
+      HStack(spacing: 10) {
+        StatusGlyph(kind: .failed, size: 18)
+        VStack(alignment: .leading, spacing: 0) {
+          Text(failure.title).font(.system(size: 15, weight: .semibold)).lineLimit(2).lh(15)
+          Text(subtitle).muted().lineLimit(1).truncationMode(.middle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         Button("Copy output") {
           NSPasteboard.general.clearContents()
           NSPasteboard.general.setString(failure.detail, forType: .string)
         }
-        .buttonStyle(.pill)
+        .buttonStyle(.flat(small: true))
         if let library = failure.library {
-          Button("Open library") { openLibrary(library) }.buttonStyle(.pill)
+          Button("Open library") { openLibrary(library) }.buttonStyle(.flat(small: true))
         }
       }
-      Text(subtitle)
-        .font(DS.caption)
-        .foregroundStyle(DS.muted)
-        .padding(.leading, 26)
-        .padding(.top, 2)
-        .padding(.bottom, 12)
       ScrollView([.vertical, .horizontal]) {
         Text(failure.detail.isEmpty ? "No output was captured." : failure.detail)
-          .font(DS.mono)
-          .lineSpacing(5)
-          // The output is what this window is for: full strength, not a caption's grey.
-          .foregroundStyle(.primary)
+          .font(Theme.mono)
+          .lineSpacing(4.8)
+          .foregroundStyle(Theme.text)
           .textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .topLeading)
-          .padding(.horizontal, 10)
-          .padding(.vertical, 8)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 12)
       }
       // Opens on the output's first line, not wherever the content's centre falls.
       .defaultScrollAnchor(.topLeading)
-      .background(DS.neutralFill, in: .rect(cornerRadius: DS.radius))
+      .background(Theme.code, in: .rect(cornerRadius: 10))
+      .padding(.top, 12)
     }
-    .padding(.horizontal, 20)
+    .padding(.horizontal, 18)
     .padding(.vertical, 16)
   }
 
@@ -131,7 +158,7 @@ public final class FailureWindow {
       window.contentView = NSHostingView(rootView: root)
     } else {
       let window = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 720, height: 440),
+        contentRect: NSRect(x: 0, y: 0, width: 760, height: 440),
         styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
       window.title = "Failures"
       window.isReleasedWhenClosed = false

@@ -18,7 +18,9 @@ dryfit only ever deletes folders inside the app.
 ## Restart the dev server
 
 A running dev server holds the old build in memory. After a sync, restart it unless it reloaded on its own.
-`dryfit events` and the menu bar show when each install finished.
+`dryfit events` and the menu bar show when each install finished. The menu bar marks an app only while a
+node, bun or deno process serving it (such as `ng serve`, `vite` or `next dev`) has been running since before
+the install, and clears the mark once that process restarts or stops.
 
 ## Apps that run together
 

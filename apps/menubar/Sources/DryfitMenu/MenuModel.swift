@@ -107,9 +107,9 @@ public struct LibraryRow: Identifiable, Equatable {
   /// Newest first.
   public internal(set) var failures: [Failure] = []
   public internal(set) var hasUnseenFailure = false
-  /// Apps whose framework caches dryfit cleared after installing a dev build: a dev server that is
-  /// running still holds what was deleted and shows the change only after a restart (ADR 0007).
-  /// Kept until the user says they restarted it, or the app is put back.
+  /// Apps whose framework caches dryfit cleared after installing a dev build while their dev server
+  /// was running: it still holds what was deleted and shows the change only after a restart (ADR 0007).
+  /// Kept until that server restarts or stops, the user says it needs no restart, or the app is put back.
   public internal(set) var restartNeeded: Set<String> = []
   public internal(set) var consumers: [DiscoveredConsumer] = []
   /// Apps the user added by hand from outside the project folders, until they are linked.
@@ -149,6 +149,11 @@ public struct LibraryRow: Identifiable, Equatable {
   @ObservationIgnored private let startAtLogin: StartAtLogin?
   @ObservationIgnored private let notifier: any Notifier
   @ObservationIgnored private let orderStore: ItemOrderStore
+  @ObservationIgnored private let devServers: DevServers
+  /// When dryfit cleared each app's caches, for apps whose dev server may predate it.
+  @ObservationIgnored private var clearedAt: [String: Date] = [:]
+  /// Looks at the dev servers again while any app waits on a restart.
+  @ObservationIgnored private var devServerWatch: Task<Void, Never>?
   /// Tests' clock; nil sleeps for real.
   @ObservationIgnored private let sleep: (@Sendable (Duration) async throws -> Void)?
   @ObservationIgnored private var api: (any DaemonAPI)?
@@ -162,6 +167,7 @@ public struct LibraryRow: Identifiable, Equatable {
   static let maximumDelay = Duration.seconds(10)
   static let startTimeout = Duration.seconds(30)
   static let stableConnection = Duration.seconds(30)
+  static let devServerInterval = Duration.seconds(2)
   static let unseenFailureCodes: Set<String> = [
     "publish-failed", "registry-failed", "state-corrupt", "daemon-failed", "internal",
   ]
@@ -175,6 +181,7 @@ public struct LibraryRow: Identifiable, Equatable {
     startAtLogin: StartAtLogin? = nil,
     notifier: any Notifier,
     orderStore: ItemOrderStore = .memory,
+    devServers: DevServers = .system,
     // No closure literal as the default: Swift 6.2 on macOS 26 aborts in swift_task_dealloc when a
     // default async closure from this MainActor-by-default module is called ("freed pointer was not
     // the last allocation").
@@ -189,6 +196,7 @@ public struct LibraryRow: Identifiable, Equatable {
     self.startsAtLogin = startAtLogin?.isOn()
     self.notifier = notifier
     self.orderStore = orderStore
+    self.devServers = devServers
     self.order = orderStore.load()
     self.sleep = sleep
   }
@@ -385,9 +393,30 @@ public struct LibraryRow: Identifiable, Equatable {
     actionError = nil
   }
 
-  /// The user restarted the app's dev server, or does not run one.
+  /// The user says the app's dev server needs no restart, as when it reloaded by itself.
   public func restarted(_ consumer: String) {
+    clearedAt[consumer] = nil
     restartNeeded.remove(consumer)
+  }
+
+  /// Asks for a restart only in apps with a dev server that started before their caches were cleared.
+  /// One that started since has the new build, and with none running the next start loads it.
+  func checkDevServers() {
+    clearedAt = clearedAt.filter { consumer, cleared in
+      devServers.running(consumer).contains { $0.started < cleared }
+    }
+    let waiting = Set(clearedAt.keys)
+    if waiting != restartNeeded { restartNeeded = waiting }
+    if !waiting.isEmpty, devServerWatch == nil {
+      devServerWatch = Task { [weak self] in
+        while let self, !Task.isCancelled {
+          if let sleep { try? await sleep(Self.devServerInterval) } else { try? await Task.sleep(for: Self.devServerInterval) }
+          checkDevServers()
+          if clearedAt.isEmpty { break }
+        }
+        self?.devServerWatch = nil
+      }
+    }
   }
 
   /// The user dismissed the failures they have read.
@@ -451,14 +480,16 @@ public struct LibraryRow: Identifiable, Equatable {
     case .consumerRestored(let consumer, let library, _):
       activity = library.map { "Restored \($0) in \(projectName(consumer))" } ?? "Restored \(projectName(consumer))"
       // Back on its releases, the app has no dev build left to restart for.
-      if library == nil { restartNeeded.remove(consumer) }
+      if library == nil { restarted(consumer) }
       // Nor a failed install to show: its row is gone, and the failure would turn into a banner.
       failures.removeAll { failure in
         failure.consumer == consumer && (library.map { failure.subject == Self.installSubject($0, consumer) } ?? true)
       }
       if failures.isEmpty { hasUnseenFailure = false }
     case .cachesCleared(let consumer, _):
-      restartNeeded.insert(consumer)
+      // The daemon's time, so an event replayed after reconnecting is not taken as new.
+      clearedAt[consumer] = Self.date(event.at) ?? .now
+      checkDevServers()
     case .jobStarted(let job):
       activity = describe(job)
       scheduleRefresh()
@@ -479,6 +510,12 @@ public struct LibraryRow: Identifiable, Equatable {
   }
 
   private static func buildSubject(_ library: String) -> String { "build \(library)" }
+
+  /// An event's ISO 8601 time, as the daemon writes it (with milliseconds) or without them.
+  static func date(_ at: String) -> Date? {
+    (try? Date(at, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
+      ?? (try? Date(at, strategy: .iso8601))
+  }
   private static func installSubject(_ library: String, _ consumer: String) -> String {
     "install \(library) into \(consumer)"
   }

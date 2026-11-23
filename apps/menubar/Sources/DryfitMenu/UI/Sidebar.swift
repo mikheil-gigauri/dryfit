@@ -159,6 +159,8 @@ struct Sidebar: View {
         Button { navigation.selection = .settings } label: {
           Icon(kind: .gear, size: 16, color: navigation.selection == .settings ? Theme.accent : Theme.faint)
             .padding(.horizontal, 6).padding(.vertical, 2)
+            // A stroked icon takes clicks only on its lines; the whole padded box (and a little more) should.
+            .contentShape(.rect.inset(by: -4))
         }
         .buttonStyle(.plain)
         .help("Settings (⌘,)")

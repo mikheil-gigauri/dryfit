@@ -3,8 +3,8 @@ title: Compared with npm link and yalc
 description: When dryfit is the right tool, and when something simpler will do.
 ---
 
-There are three common ways to try a library change in an app before releasing it. Each makes a different
-trade.
+There are three common ways to try a library change in an app before releasing it, and each trades
+something for its speed.
 
 **`npm link`** (and `pnpm link`, `yarn link`) replaces the package in the app's `node_modules` with a
 symlink to your library folder. Changes appear instantly, with no build or install. But the app now

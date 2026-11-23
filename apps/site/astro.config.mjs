@@ -17,6 +17,16 @@ export default defineConfig({
       logo: { light: './src/assets/mark-light.svg', dark: './src/assets/mark-dark.svg' },
       social: [{ icon: 'github', label: 'GitHub', href: repo }],
       editLink: { baseUrl: `${repo}/edit/main/apps/site/` },
+      components: { PageTitle: './src/components/PageTitle.astro' },
+      expressiveCode: {
+        styleOverrides: {
+          borderRadius: '6px',
+          borderColor: 'var(--dl-grid)',
+          codeFontFamily: 'var(--sl-font-mono)',
+          uiFontFamily: 'var(--sl-font)',
+          frames: { shadowColor: 'transparent', frameBoxShadowCssValue: 'none' },
+        },
+      },
       customCss: [
         '@fontsource-variable/bricolage-grotesque/standard.css',
         '@fontsource-variable/martian-mono',

@@ -17,7 +17,7 @@ dryfit only ever deletes folders inside the app.
 
 ## Restart the dev server
 
-A running dev server holds the old build in memory. After a sync, restart it unless it reloaded by itself.
+A running dev server holds the old build in memory. After a sync, restart it unless it reloaded on its own.
 `dryfit events` and the menu bar show when each install finished.
 
 ## Apps that run together

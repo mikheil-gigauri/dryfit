@@ -7,14 +7,14 @@ dryfit installs into each app with the package manager that app already uses. It
 the `packageManager` field in `package.json`, or else from the lockfile. Your library can use a different
 package manager from your apps: dryfit always publishes with npm.
 
-| App uses      | Lockfile            | How the dev build is installed                          |
-| ------------- | ------------------- | ------------------------------------------------------- |
-| npm           | `package-lock.json` | By version, with the library's scope pointed at dryfit |
-| pnpm          | `pnpm-lock.yaml`    | By version, with the library's scope pointed at dryfit |
-| Yarn 2 and up | `yarn.lock`         | From the dev build's tarball URL                        |
-| Bun           | `bun.lock`          | From the dev build's tarball URL                        |
+| App uses        | Lockfile            | How the dev build is installed                         |
+| --------------- | ------------------- | ------------------------------------------------------ |
+| npm             | `package-lock.json` | By version, with the library's scope pointed at dryfit |
+| pnpm            | `pnpm-lock.yaml`    | By version, with the library's scope pointed at dryfit |
+| Yarn 2 or newer | `yarn.lock`         | From the dev build's tarball URL                       |
+| Bun             | `bun.lock`          | From the dev build's tarball URL                       |
 
-Neither your `.npmrc`, `.yarnrc.yml` nor `bunfig.toml` is ever edited. Restoring puts `package.json` and
+dryfit never edits your `.npmrc`, `.yarnrc.yml` or `bunfig.toml`. Restoring puts `package.json` and
 the lockfile back exactly as they were, and removes a lockfile the app did not have before.
 
 ## npm and pnpm
@@ -35,7 +35,7 @@ tarball URL instead, for example
 until you restore. Installing from a URL also avoids Yarn's release-age gate, which applies to registry
 versions only.
 
-Yarn 1 is not supported. dryfit says so instead of installing.
+Yarn 1 is not supported: dryfit says so instead of installing.
 
 ## Bun
 

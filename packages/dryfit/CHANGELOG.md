@@ -1,5 +1,17 @@
 # @dryfit/cli
 
+## 0.8.2
+
+### Patch Changes
+
+- 8422ab7: Restoring an npm app is faster. With a `node_modules` in place, `dryfit restore` now runs `npm install`, which changes only the dev builds, instead of `npm ci`, which deletes `node_modules` and installs everything. On a sample app that took 0.35 s instead of 1.5 s, and the gap grows with the app. If the incremental install fails, the full `npm ci` runs, and a lockfile that npm rewrote goes back to the snapshot's bytes, so the restore stays exact.
+- c73e2c1: A CLI no longer restarts a newer dryfit daemon that speaks the same API. Before, two CLI versions used side by side, such as a global install and `npx @dryfit/cli@latest`, restarted the daemon on every switch and cancelled the job it was running. An older daemon is still replaced, so an update takes effect, and `dryfit doctor` says when a newer daemon is kept.
+- b46fd8b: Commands start about five times faster. The CLI used to load the registry (Verdaccio, about 300 ms) on every command, even `--version`; now only the daemon does. `dryfit --version` takes about 60 ms instead of 300 ms.
+- ab33209: The menu bar app's window and widget are rebuilt to match the approved design exactly. The window has no title bar, so its buttons sit over a sidebar that is always there, with no sidebar toggle. Buttons, switches, tables and sheets are drawn the way the design draws them instead of with the system's controls. Dragging still reorders libraries, apps and groups.
+- b1b22dc: The menu bar widget never scrolls. When its libraries would not fit under the menu bar it folds them, then shows fewer, with the rest a click away in the dryfit window. It also keeps more room between the groups and the footer.
+- 00ad2af: `dryfit add` builds an Nx library whose build target comes from a plugin. When `nx.json` lists the `@nx/js/typescript`, `@nx/vite`, `@nx/rollup` or `@nx/webpack` plugin and the library has that plugin's config file, it is built with `nx` under the target name the plugin is configured to use, instead of falling back to the npm script.
+- c21f615: `dryfit add` builds an Nx library that has no `project.json` with Nx. When its `package.json` has a `build` script or `nx.targets.build`, or it has an `ng-package.json`, the library is built with `nx build` under the name Nx gives it, and its output folder is published, instead of falling back to `npm run build` and the library root.
+
 ## 0.8.1
 
 ### Patch Changes

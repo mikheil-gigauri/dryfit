@@ -134,7 +134,7 @@ nonisolated struct SVGShape: Shape {
 /// The mockup's line icons, at the size and stroke weight it draws them.
 struct Icon: View {
   enum Kind {
-    case library, app, group, search, gear, folder
+    case library, app, group, search, gear, folder, chevron
   }
 
   let kind: Kind
@@ -156,9 +156,12 @@ struct Icon: View {
           .frame(width: 13 * size / 24, height: 13 * size / 24).position(x: 10.5 * size / 24, y: 10.5 * size / 24)
         stroke(["M16 16l5 5"], 2.2, cap: .round)
       case .gear:
-        Circle().stroke(color, style: StrokeStyle(lineWidth: 1.8 * size / 24))
+        stroke(
+          ["M10.08 4.85 L10.47 2.32 L13.53 2.32 L13.92 4.85 L15.70 5.59 L17.76 4.07 L19.93 6.24 L18.41 8.30 L19.15 10.08 L21.68 10.47 L21.68 13.53 L19.15 13.92 L18.41 15.70 L19.93 17.76 L17.76 19.93 L15.70 18.41 L13.92 19.15 L13.53 21.68 L10.47 21.68 L10.08 19.15 L8.30 18.41 L6.24 19.93 L4.07 17.76 L5.59 15.70 L4.85 13.92 L2.32 13.53 L2.32 10.47 L4.85 10.08 L5.59 8.30 L4.07 6.24 L6.24 4.07 L8.30 5.59Z"], 1.7, cap: .round)
+        Circle().stroke(color, style: StrokeStyle(lineWidth: 1.7 * size / 24))
           .frame(width: 6 * size / 24, height: 6 * size / 24).position(x: 12 * size / 24, y: 12 * size / 24)
-        stroke(["M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"], 1.8, cap: .round)
+      case .chevron:
+        stroke(["M9 6l6 6-6 6"], 1.7, cap: .round)
       case .folder:
         stroke(
           ["M3 6.5A1.5 1.5 0 014.5 5H9l2 2.5h8.5A1.5 1.5 0 0121 9v8.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z"], 1.8, cap: .butt)

@@ -3,7 +3,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, RequestListener, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { runServer } from 'verdaccio';
+import type { runServer as RunServer } from 'verdaccio';
 import { DryfitError } from '../../core/errors.ts';
 import type { RegistryCredentials } from '../../core/ports.ts';
 
@@ -82,6 +82,8 @@ export class VerdaccioRegistry {
       (uplink.scopes ?? []).map((scope) => [`${scope}/*`, rule([name])] as const),
     );
     const general = entries.filter(([, uplink]) => !uplink.scopes?.length).map(([name]) => name);
+    // Loaded here, not at the top: Verdaccio takes about 300 ms to import, and only the daemon needs it.
+    const { runServer } = await import('verdaccio');
     const server: Server = await runServer({
       self_path: join(options.storage, 'config.yaml'),
       storage: options.storage,
@@ -90,7 +92,7 @@ export class VerdaccioRegistry {
       packages: { ...Object.fromEntries(scoped), '**': rule(general) },
       web: { enable: false },
       log: { type: 'stdout', format: 'json', level: options.logLevel ?? 'warn' },
-    } as Parameters<typeof runServer>[0]);
+    } as Parameters<typeof RunServer>[0]);
 
     try {
       guardAgainstBrowsers(server);

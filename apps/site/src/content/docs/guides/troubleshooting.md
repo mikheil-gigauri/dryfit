@@ -4,14 +4,14 @@ description: What to do when a change does not show up, an install fails, or dry
 ---
 
 Start with `dryfit doctor`. It checks Node, npm, your config and project roots, and the service, and says
-what to fix. `dryfit events` follows what the service is doing while you reproduce a problem, and its log is in
+what to fix. `dryfit events` follows what the service does while you reproduce a problem, and the service's log is at
 `~/.dryfit/logs/daemon.log`.
 
 ## My change does not show up
 
 Check that the install reached the app: `dryfit status` lists each linked app with the version it has.
-If the version is right, the app's dev server is still serving the old build. Restart it. If it uses a
-build cache dryfit does not know about, delete that folder too.
+If the version is right, the app's dev server is still serving the old build: restart it. If the app uses
+a build cache dryfit does not know about, delete that folder too.
 
 If the version is not right, the build or the install failed. `dryfit status` shows the failure, and the
 menu bar app shows its full output.

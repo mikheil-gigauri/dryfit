@@ -14,6 +14,7 @@ import type { Health, StatusView } from '../daemon/api.ts';
 import { startDaemon } from '../daemon/daemon.ts';
 import { installSkill, readSkill, uninstallSkill } from './agent-skill.ts';
 import { DaemonClient } from './client.ts';
+import { needsRestart } from './daemon-version.ts';
 import { LAUNCH_AGENT_LABEL, launchAgentPlist } from './launchd.ts';
 import type { LocalControl } from './main.ts';
 import type { Output } from './output.ts';
@@ -70,7 +71,7 @@ export class LocalMachine implements LocalControl {
   /** A client for a daemon of this version, starting or restarting one as needed. */
   async connect(): Promise<DaemonClient> {
     const running = await this.#find();
-    if (running && running.health.version === this.#options.version) return running.client;
+    if (running && !needsRestart(running.health, this.#options.version)) return running.client;
     if (running) await this.#stop(running);
     return this.#start();
   }
@@ -190,11 +191,15 @@ export class LocalMachine implements LocalControl {
     let status: StatusView | undefined;
     if (!running) add('warn', 'Daemon', 'not running; any command starts it');
     else {
-      const same = running.health.version === this.#options.version;
+      const restarts = needsRestart(running.health, this.#options.version);
       add(
-        same ? 'ok' : 'warn',
+        restarts ? 'warn' : 'ok',
         `Daemon ${running.health.version} (pid ${running.health.pid})`,
-        same ? '' : `this CLI is ${this.#options.version}; the next command restarts it`,
+        restarts
+          ? `this CLI is ${this.#options.version}; the next command restarts it`
+          : running.health.version === this.#options.version
+            ? ''
+            : `newer than this CLI (${this.#options.version}), so it is kept`,
       );
       const ping = await fetch(`${running.health.registryUrl}-/ping`, {
         signal: AbortSignal.timeout(5_000),

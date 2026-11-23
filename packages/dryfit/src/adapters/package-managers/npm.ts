@@ -32,9 +32,15 @@ export const npm: PackageManagerAdapter = {
     };
   },
 
-  cleanInstall({ cwd, hasLockfile }) {
+  cleanInstall({ cwd, hasLockfile, incremental }) {
     // Without a lockfile, a plain install must not create one, or the restore would not be exact.
-    const args = hasLockfile ? ['ci', ...QUIET] : ['install', '--no-package-lock', ...QUIET];
+    // `npm ci` deletes node_modules and installs it all; `npm install` follows the lockfile too, but
+    // changes only what differs, which is a dev build or two.
+    const args = !hasLockfile
+      ? ['install', '--no-package-lock', ...QUIET]
+      : incremental
+        ? ['install', ...QUIET]
+        : ['ci', ...QUIET];
     return { command: 'npm', args, cwd };
   },
 };

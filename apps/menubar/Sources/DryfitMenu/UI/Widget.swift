@@ -40,6 +40,8 @@ public struct MenuContent: View {
     .font(Theme.body)
     .foregroundStyle(Theme.text)
     .frame(width: 372)
+    // The mockup's `.panel`, not the system's Liquid Glass: a near-opaque surface over a plain blur.
+    .background(PanelSurface())
     .onAppear { model.menuOpened() }
     // The rest of what the old footer menu held is on the menu bar icon's right-click menu. These keep
     // its shortcuts working while the window is open.
@@ -65,6 +67,31 @@ public struct MenuContent: View {
     navigation.wantsNewLibrary = true
     show(nil)
   }
+}
+
+// MARK: Surface
+
+/// The mockup's `.panel` background: `Theme.glass` (82% white or charcoal) over a blur of what is behind
+/// the window, so the panel reads as one solid surface in light and dark rather than as Liquid Glass.
+private struct PanelSurface: View {
+  var body: some View {
+    ZStack {
+      BehindWindowBlur()
+      Theme.glass
+    }
+  }
+}
+
+private struct BehindWindowBlur: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSVisualEffectView {
+    let view = NSVisualEffectView()
+    view.material = .popover
+    view.blendingMode = .behindWindow
+    view.state = .active
+    return view
+  }
+
+  func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 // MARK: Header, foot
@@ -366,8 +393,15 @@ private struct LibraryCard: View {
   var body: some View {
     let candidates = model.linkCandidates(for: name)
     VStack(alignment: .leading, spacing: 0) {
-      header
-      summary(candidates: candidates.count)
+      HStack(alignment: .top, spacing: 0) {
+        foldButton
+        VStack(alignment: .leading, spacing: 0) {
+          header
+          summary(candidates: candidates.count)
+        }
+      }
+      // So the fold column is as tall as the name and summary beside it.
+      .fixedSize(horizontal: false, vertical: true)
       if !isFolded {
         ForEach(shownLinks) { link in
           Hair()
@@ -389,21 +423,31 @@ private struct LibraryCard: View {
         linkFooter(candidates)
       }
     }
-    .card(radius: Theme.widgetCardRadius)
+    .card(radius: Theme.widgetCardRadius, fill: Theme.widgetCard)
   }
 
   private var name: String { row.library.name }
 
+  /// The triangle, and with it the whole left gutter of the card beside the name and summary: the
+  /// triangle alone is too small to hit.
+  private var foldButton: some View {
+    Button {
+      withAnimation(.snappy) { isFolded.toggle() }
+    } label: {
+      Text(isFolded ? "▸" : "▾").font(.system(size: 10)).foregroundStyle(Theme.faint)
+        .frame(width: 10, height: 19.6)
+        .padding(.top, 11)
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(isFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
+  }
+
   private var header: some View {
     HStack(spacing: 8) {
-      Button {
-        withAnimation(.snappy) { isFolded.toggle() }
-      } label: {
-        Text(isFolded ? "▸" : "▾").font(.system(size: 10)).foregroundStyle(Theme.faint)
-          .frame(width: 10, height: 19.6).contentShape(.rect)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(isFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
       Button(action: open) {
         Text(name).font(.system(size: 14, weight: .semibold)).lineLimit(1).truncationMode(.middle).lh(14)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -417,7 +461,8 @@ private struct LibraryCard: View {
         .disabled(model.isBusy(.watch(name)))
         .help(row.library.isWatched ? "Auto-sync is on: every change you save is synced" : "Auto-sync: sync every change you save")
     }
-    .padding(.horizontal, 12)
+    .padding(.leading, 2)
+    .padding(.trailing, 12)
     .padding(.top, 11)
     .padding(.bottom, 4)
   }
@@ -446,7 +491,6 @@ private struct LibraryCard: View {
     .font(Theme.small)
     .foregroundStyle(Theme.muted)
     .lineLimit(1)
-    .padding(.leading, 28)
     .padding(.trailing, 12)
     .padding(.bottom, 9)
   }
@@ -674,7 +718,7 @@ private struct GroupCard: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .card(radius: Theme.widgetCardRadius)
+    .card(radius: Theme.widgetCardRadius, fill: Theme.widgetCard)
   }
 
   private var apps: String { group.consumers.map(projectName).joined(separator: ", ") }

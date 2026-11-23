@@ -224,8 +224,8 @@ struct Well<Content: View>: View {
 
 extension View {
   /// A card as the mockup draws it: white (or the dark card grey), a half-point edge.
-  func card(radius: CGFloat = Theme.cardRadius) -> some View {
-    background(Theme.card, in: .rect(cornerRadius: radius))
+  func card(radius: CGFloat = Theme.cardRadius, fill: Color = Theme.card) -> some View {
+    background(fill, in: .rect(cornerRadius: radius))
       .overlay { RoundedRectangle(cornerRadius: radius).strokeBorder(Theme.cardBorder, lineWidth: 0.5) }
   }
 }

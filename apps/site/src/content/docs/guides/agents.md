@@ -3,8 +3,9 @@ title: Coding agents
 description: Let Claude Code and other agents link, sync and restore your apps for you.
 ---
 
-dryfit never asks questions and every command answers in JSON, so an agent can drive it the way you do.
-What an agent lacks is knowing that dryfit exists and how to use it safely. dryfit ships that as a skill.
+dryfit never stops to ask a question, and every command can answer in JSON, so an agent can drive it the
+way you do. What an agent lacks is knowing that dryfit exists and how to use it safely, so dryfit ships
+that knowledge as a skill.
 
 ## Claude Code
 

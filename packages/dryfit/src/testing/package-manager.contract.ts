@@ -203,6 +203,20 @@ export function describePackageManagerContract(adapter: PackageManagerAdapter, s
       expect(await readFile(join(consumer, lockfileName), 'utf8')).toBe(lockfile);
     });
 
+    it('reinstalls what a restored lockfile says without deleting node_modules first', async () => {
+      const consumer = await createConsumer();
+      const manifest = await readFile(join(consumer, 'package.json'), 'utf8');
+      const lockfile = await readFile(join(consumer, lockfileName), 'utf8');
+      await installDev(consumer);
+
+      await writeFile(join(consumer, 'package.json'), manifest);
+      await writeFile(join(consumer, lockfileName), lockfile);
+      await exec(adapter.cleanInstall({ cwd: consumer, hasLockfile: true, incremental: true }));
+
+      expect(await requireFrom(consumer, LIB)).toBe('release');
+      expect(await readFile(join(consumer, lockfileName), 'utf8')).toBe(lockfile);
+    });
+
     it('installs a dev version even when another dependency peers on a release range', async () => {
       // A prerelease never satisfies `^1.0.0` (ADR 0004). The adapter must still install it, and the
       // dependent must resolve the single dev copy rather than a second, released one.

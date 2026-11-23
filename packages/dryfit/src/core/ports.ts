@@ -78,6 +78,11 @@ export interface CleanInstallSpec {
   readonly cwd: string;
   /** Whether a lockfile exists to install from exactly. */
   readonly hasLockfile: boolean;
+  /**
+   * Whether node_modules may be reused, so only what differs from the lockfile is touched. A manager that
+   * already installs that way ignores it; npm otherwise deletes node_modules and installs everything.
+   */
+  readonly incremental?: boolean;
 }
 
 /** HTTP Basic credentials for the local registry. The password is random and changes on every start. */

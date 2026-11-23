@@ -18,23 +18,12 @@ public struct MenuContent: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if model.connection == .online, let outdated = model.outdatedVersion {
-        OutdatedBar(model: model, version: outdated)
-      }
-      PanelHeader(model: model) { show(nil) }
-      switch model.connection {
-      case .online:
-        OnlineContent(model: model, actions: actions, show: show, addLibrary: addLibrary)
-      case .offline, .starting:
-        Unavailable(model: model, actions: actions)
-      case .connecting:
-        Spin().frame(maxWidth: .infinity).padding(.vertical, 34)
-      case .incompatible(let daemonVersion):
-        Incompatible(model: model, actions: actions, daemonVersion: daemonVersion)
-      }
-      PanelFoot(model: model, actions: actions) {
-        navigation.showSettings { openWindow(id: mainWindowID) }
+    // The window never scrolls. It is as tall as what it shows, and when that would not fit under the
+    // menu bar it shows less: first every library folded, then fewer libraries and groups, the rest a
+    // click away in the dryfit window.
+    Room(height: Self.room) {
+      ViewThatFits(in: .vertical) {
+        ForEach(fits) { fit in panel(fit) }
       }
     }
     .font(Theme.body)
@@ -53,6 +42,41 @@ public struct MenuContent: View {
       }
       .opacity(0)
       .accessibilityHidden(true)
+    }
+  }
+
+  /// The height the screen leaves for the window, under the menu bar and with a margin.
+  private static var room: CGFloat { (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame.height.advanced(by: -24) ?? 700 }
+
+  /// How much of the library list to show, from all of it to the least that still says what is there.
+  private var fits: [Fit] {
+    guard model.connection == .online else { return [Fit()] }
+    let libraries = model.libraries.count, groups = model.groups.count
+    var result = [Fit(), Fit(folded: true)]
+    for hidden in stride(from: 1, through: max(libraries - 1, 0), by: 1) { result.append(Fit(folded: true, hiddenLibraries: hidden)) }
+    for hidden in stride(from: 1, through: groups, by: 1) { result.append(Fit(folded: true, hiddenLibraries: max(libraries - 1, 0), hiddenGroups: hidden)) }
+    return result
+  }
+
+  private func panel(_ fit: Fit) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      if model.connection == .online, let outdated = model.outdatedVersion {
+        OutdatedBar(model: model, version: outdated)
+      }
+      PanelHeader(model: model) { show(nil) }
+      switch model.connection {
+      case .online:
+        OnlineContent(model: model, actions: actions, fit: fit, show: show, addLibrary: addLibrary)
+      case .offline, .starting:
+        Unavailable(model: model, actions: actions)
+      case .connecting:
+        Spin().frame(maxWidth: .infinity).padding(.vertical, 34)
+      case .incompatible(let daemonVersion):
+        Incompatible(model: model, actions: actions, daemonVersion: daemonVersion)
+      }
+      PanelFoot(model: model, actions: actions) {
+        navigation.showSettings { openWindow(id: mainWindowID) }
+      }
     }
   }
 
@@ -186,9 +210,33 @@ private struct PanelFoot: View {
 
 // MARK: Online
 
+/// Offers its one child the room there is, whatever it is offered itself, and is as tall as what the child
+/// then takes. (A `frame(maxHeight:)` would make a window as tall as the room, as a child that does not
+/// fit is the first thing it measures.)
+private struct Room: Layout {
+  let height: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    subviews.first?.sizeThatFits(ProposedViewSize(width: proposal.width, height: height)) ?? .zero
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+  }
+}
+
+/// How much of the window's list is shown (see `MenuContent.body`).
+private struct Fit: Identifiable {
+  var folded = false
+  var hiddenLibraries = 0
+  var hiddenGroups = 0
+  var id: String { "\(folded)/\(hiddenLibraries)/\(hiddenGroups)" }
+}
+
 private struct OnlineContent: View {
   let model: MenuModel
   let actions: MenuActions
+  var fit = Fit()
   let show: (SidebarItem?) -> Void
   let addLibrary: () -> Void
 
@@ -202,11 +250,7 @@ private struct OnlineContent: View {
         Button("Add library", action: addLibrary).buttonStyle(FlatButtonStyle(kind: .primary, roomy: true)).padding(.top, 10)
       }
     } else {
-      // As tall as its content, scrolling past what fits under the menu bar.
-      ScrollView { sections }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxHeight: 520)
-        .fixedSize(horizontal: false, vertical: true)
+      sections
         .task {
           // The link chips offer projects that use each library; finding them reads the disk once.
           if model.consumers.isEmpty { await model.discoverConsumers() }
@@ -254,18 +298,41 @@ private struct OnlineContent: View {
           Button("Dismiss") { model.dismissActionError() }.buttonStyle(.flat(small: true))
         }
       }
-      ForEach(model.libraries) { row in
-        LibraryCard(row: row, model: model, actions: actions) { show(.library(row.library.name)) }
+      ForEach(model.libraries.dropLast(fit.hiddenLibraries)) { row in
+        LibraryCard(row: row, model: model, actions: actions, squeezed: fit.folded) { show(.library(row.library.name)) }
       }
-      if !model.groups.isEmpty {
+      if fit.hiddenLibraries > 0 { MoreInWindow(count: fit.hiddenLibraries, noun: "librar", plural: "ies", singular: "y") { show(nil) } }
+      if !model.groups.isEmpty, fit.hiddenGroups < model.groups.count {
         WidgetSection("Groups")
-        ForEach(model.groups) { group in
+        ForEach(model.groups.dropLast(fit.hiddenGroups)) { group in
           GroupCard(group: group, model: model) { show(.group(group.name)) }
         }
       }
+      if fit.hiddenGroups > 0 { MoreInWindow(count: fit.hiddenGroups, noun: "group", plural: "s", singular: "") { show(nil) } }
     }
     .padding(.horizontal, 12)
-    .padding(.bottom, 2)
+    .padding(.bottom, 12)
+  }
+}
+
+/// What is left out when the window is short, and where to find it.
+private struct MoreInWindow: View {
+  let count: Int
+  let noun: String
+  let plural: String
+  let singular: String
+  let open: () -> Void
+
+  var body: some View {
+    Button(action: open) {
+      Text("Show \(count) more \(noun)\(count == 1 ? singular : plural) in window ›")
+        .font(.system(size: 12.5, weight: .medium))
+        .foregroundStyle(Theme.accent)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
   }
 }
 
@@ -381,6 +448,8 @@ private struct LibraryCard: View {
   let row: LibraryRow
   let model: MenuModel
   let actions: MenuActions
+  /// Folded to make the window fit, whatever the person chose.
+  var squeezed = false
   let open: () -> Void
   /// Folded libraries, by name, one per line; kept between launches.
   @AppStorage("foldedLibraries") private var folded = ""
@@ -402,7 +471,7 @@ private struct LibraryCard: View {
       }
       // So the fold column is as tall as the name and summary beside it.
       .fixedSize(horizontal: false, vertical: true)
-      if !isFolded {
+      if !showsFolded {
         ForEach(shownLinks) { link in
           Hair()
           LinkRow(link: link, model: model, actions: actions)
@@ -428,14 +497,15 @@ private struct LibraryCard: View {
 
   private var name: String { row.library.name }
 
-  /// The triangle, and with it the whole left gutter of the card beside the name and summary: the
-  /// triangle alone is too small to hit.
+  /// The chevron, and with it the whole left gutter of the card beside the name and summary: the
+  /// chevron alone is too small to hit.
   private var foldButton: some View {
     Button {
       withAnimation(.snappy) { isFolded.toggle() }
     } label: {
-      Text(isFolded ? "▸" : "▾").font(.system(size: 10)).foregroundStyle(Theme.faint)
-        .frame(width: 10, height: 19.6)
+      Icon(kind: .chevron, size: 16, color: Theme.muted)
+        .rotationEffect(.degrees(showsFolded ? 0 : 90))
+        .frame(width: 16, height: 19.6)
         .padding(.top, 11)
         .padding(.leading, 12)
         .padding(.trailing, 6)
@@ -443,7 +513,8 @@ private struct LibraryCard: View {
         .contentShape(.rect)
     }
     .buttonStyle(.plain)
-    .accessibilityLabel(isFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
+    .disabled(squeezed)
+    .accessibilityLabel(showsFolded ? "Show \(name)'s apps" : "Hide \(name)'s apps")
   }
 
   private var header: some View {
@@ -491,6 +562,7 @@ private struct LibraryCard: View {
     .font(Theme.small)
     .foregroundStyle(Theme.muted)
     .lineLimit(1)
+    .padding(.leading, 2)
     .padding(.trailing, 12)
     .padding(.bottom, 9)
   }
@@ -539,6 +611,8 @@ private struct LibraryCard: View {
         .padding(.vertical, 8)
     }
   }
+
+  private var showsFolded: Bool { squeezed || isFolded }
 
   private var isFolded: Bool {
     get { folded.split(separator: "\n").contains { $0 == name } }

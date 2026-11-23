@@ -7,7 +7,8 @@ On macOS, dryfit has an app: a menu in the menu bar for what you do all day, and
 things up. Everything the CLI does day to day can be done there, without a terminal. It needs macOS 26
 or newer and talks to the same background service as the CLI, so you can use both.
 
-![The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below](/dryfit/menu/window-library.light.png)
+<img class="dark:sl-hidden" src="/dryfit/menu/window-library.light.png" width="1000" height="690" alt="The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below" />
+<img class="light:sl-hidden" src="/dryfit/menu/window-library.dark.png" width="1000" height="690" alt="The dryfit window: @acme/ui linked into shop (npm) and admin (pnpm), with its build settings below" />
 
 ## The window
 
@@ -42,7 +43,8 @@ through three steps: choose the folders where your apps live, add a library, and
 
 ## The menu
 
-![The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group](/dryfit/menu/online.light.png)
+<img class="dark:sl-hidden" src="/dryfit/menu/online.light.png" width="372" height="523" alt="The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group" />
+<img class="light:sl-hidden" src="/dryfit/menu/online.dark.png" width="372" height="523" alt="The dryfit menu: a failed install at the top, two libraries with their linked apps, and a group" />
 
 From the menu you can:
 
@@ -88,7 +90,7 @@ install it with npm (`npm install --global @dryfit/cli`), which needs Node.js.
 
 ## Updates
 
-Install the app once; it keeps itself up to date. Once a day it looks for a new version, downloads it in
+Install the app once, and it keeps itself up to date. Once a day it looks for a new version, downloads it in
 the background, and replaces and reopens itself the next time you are not using it. Your libraries, apps
 and links are untouched: they live in dryfit's service, which keeps running.
 
@@ -99,4 +101,4 @@ links and watches carry over. Settings shows the same.
 
 To choose when, turn off **Install updates automatically** in Settings: the app then asks before
 installing. **Check for Updates…** in the icon's right-click menu looks right away. Versions from before 0.3.0 do not
-update themselves; download the newest once more.
+update themselves, so download the newest version once more.

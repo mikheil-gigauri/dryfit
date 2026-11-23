@@ -1,0 +1,12 @@
+---
+// Starlight's page title, followed by the page's description as its lede, so every guide opens by saying
+// what it covers. The title sits on a strip of drafting grid, as the landing page's sections do.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+
+const { description } = Astro.locals.starlightRoute.entry.data;
+---
+
+<div class="page-head">
+  <Default />
+  {description && <p class="page-lede">{description}</p>}
+</div>

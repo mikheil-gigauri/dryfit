@@ -47,6 +47,19 @@ describe('GitCommitGuard, with real git', () => {
     expect(nested.stderr).toContain('apps/shop/package-lock.json');
   });
 
+  it('refuses to commit the dev server setting dryfit keeps while linked', async () => {
+    await guard.install(repo);
+    const setting = '{ "options": { "prebundle": { "exclude": ["@acme/ui", "dryfit:linked"] } } }';
+    expect((await commit('angular.json', '{ "prebundle": { "exclude": ["@acme/ui"] } }')).exitCode).toBe(0);
+
+    const workspace = await commit('angular.json', setting);
+    const nx = await commit('apps/shop/project.json', setting);
+
+    expect([workspace.exitCode, nx.exitCode]).toEqual([1, 1]);
+    expect(workspace.stderr).toContain('angular.json');
+    expect(nx.stderr).toContain('apps/shop/project.json');
+  });
+
   it('catches files whose paths git would quote, such as non-ASCII folder names', async () => {
     await guard.install(repo);
 

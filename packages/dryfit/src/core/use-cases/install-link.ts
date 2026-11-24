@@ -1,12 +1,22 @@
 import { DryfitError } from '../errors.ts';
-import type { DryfitState, LibraryRecord, LinkRecord, Manifest } from '../model.ts';
-import type { CoreDeps, InstallPackage } from '../ports.ts';
+import type { DryfitState, LibraryRecord, LinkRecord, Manifest, SnapshotMeta } from '../model.ts';
+import type { CoreDeps, InstallPackage, ProjectInfo } from '../ports.ts';
 import { cachePathsFor } from '../project/cache-paths.ts';
 import { connectedTo, loadLibraryGraph } from '../project/library-graph.ts';
+import { liveReloadFiles } from '../project/live-reload.ts';
 import { loadProject } from '../project/load-project.ts';
 import { findDependency } from '../project/manifest.ts';
+import { tryParseJson } from '../util/json.ts';
 import { joinPath } from '../util/path.ts';
-import { adapterFor, commandOutput, failureMessage, runSafely, sameLink, withLink } from './shared.ts';
+import {
+  adapterFor,
+  commandOutput,
+  failureMessage,
+  runSafely,
+  sameLink,
+  snapshotDir,
+  withLink,
+} from './shared.ts';
 
 /** One library's dev build, as installed into a consumer. */
 export interface LibraryVersion {
@@ -40,7 +50,8 @@ export interface InstallLinksInput {
 
 /**
  * Installs dev versions of several libraries linked into one consumer in a single package manager run,
- * then clears the caches that would hide them (ADR 0007). One run lets dev builds that pin each other
+ * then keeps the dev server's live reload setting on, or clears the caches that would hide them
+ * (ADR 0007). One run lets dev builds that pin each other
  * exactly resolve together (ADR 0014).
  *
  * Every expected failure is an outcome, not an exception: a library the consumer no longer depends on
@@ -104,7 +115,14 @@ export async function installLinks(
     return fail([commandOutput(result), hint].filter(Boolean).join('\n\n'), installing);
   }
 
-  const clearedCaches = cachePathsFor(project, deps.integrations);
+  // A dev server whose live reload setting was already on picks the install up by itself; clearing its
+  // caches would only make it ask for a restart (ADR 0007).
+  const linked = (await deps.state.load()).links.filter((link) => link.consumer === consumer);
+  const names = [
+    ...new Set([...linked.map((link) => link.library), ...installing.map((entry) => entry.library)]),
+  ];
+  const live = await keepLiveReload(deps, project, names);
+  const clearedCaches = live ? [] : cachePathsFor(project, deps.integrations);
   for (const path of clearedCaches) await deps.fs.remove(joinPath(consumer, path));
 
   for (const entry of installing) deps.events.emit({ type: 'install:succeeded', ...entry, consumer });
@@ -119,6 +137,35 @@ export async function installLinks(
     outcome: { consumer, ok: true, version: main.version, libraries: versions, clearedCaches },
     links,
   };
+}
+
+/**
+ * Turns on, or keeps on, the live reload setting of each config file the consumer's snapshot holds a
+ * copy of; a file without one could not be put back on restore, so it is left alone. True when the
+ * setting was already on in every such file, so a running dev server picks the install up by itself.
+ */
+async function keepLiveReload(
+  deps: CoreDeps,
+  project: ProjectInfo,
+  libraries: readonly string[],
+): Promise<boolean> {
+  const metaText = await deps.fs.readText(joinPath(snapshotDir(deps, project.root), 'meta.json'));
+  const meta =
+    metaText === undefined ? undefined : (tryParseJson(metaText) as Partial<SnapshotMeta> | undefined);
+  const settings = liveReloadFiles(project, deps.integrations).filter(({ file }) =>
+    meta?.configFiles?.includes(file),
+  );
+  if (settings.length === 0) return false;
+
+  let alreadyOn = true;
+  for (const { file, setting } of settings) {
+    const path = joinPath(project.root, file);
+    const text = await deps.fs.readText(path);
+    const edited = text === undefined ? undefined : setting.apply(text, libraries);
+    if (edited !== undefined) await deps.fs.writeText(path, edited);
+    if (text === undefined || edited !== undefined || !setting.isOn(text, libraries)) alreadyOn = false;
+  }
+  return alreadyOn;
 }
 
 /**

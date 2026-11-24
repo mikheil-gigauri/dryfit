@@ -3,6 +3,7 @@ import { DEV_VERSION_PATTERN } from '../guard/commit-guard.ts';
 import type { DryfitState, LibraryRecord, LinkRecord, SnapshotMeta } from '../model.ts';
 import type { CoreDeps, PackageManagerAdapter, ProjectInfo } from '../ports.ts';
 import { dependencyOrder, loadLibraryGraph } from '../project/library-graph.ts';
+import { liveReloadFiles } from '../project/live-reload.ts';
 import { enclosingWorkspace, loadProject } from '../project/load-project.ts';
 import { findDependency } from '../project/manifest.ts';
 import { joinPath } from '../util/path.ts';
@@ -176,6 +177,14 @@ async function takeSnapshot(
     }
     files.set(file, text);
   }
+  // Copies of the config files a live reload setting will be kept in, for restore to undo it (ADR 0007).
+  const configFiles: string[] = [];
+  for (const { file } of liveReloadFiles(project, deps.integrations)) {
+    const text = await deps.fs.readText(joinPath(project.root, file));
+    if (text === undefined) continue;
+    files.set(joinPath('configs', file), text);
+    configFiles.push(file);
+  }
 
   await deps.fs.remove(dir);
   for (const [file, text] of files) await deps.fs.writeText(joinPath(dir, file), text);
@@ -185,6 +194,7 @@ async function takeSnapshot(
     packageManager: adapter.name,
     lockfiles,
     createdAt: deps.clock.now().toISOString(),
+    configFiles,
   };
   // meta.json is written last: its presence marks a complete snapshot.
   await deps.fs.writeText(joinPath(dir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`);

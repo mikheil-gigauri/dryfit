@@ -1,0 +1,53 @@
+{
+  "app": "dryfit's menu bar app (widget and window) and its CLI",
+  "base": "main",
+  "branches": "feat/<slug>, fix/<slug>",
+  "commits": "conventional prefix, short lower-case sentence: `feat(menubar): …`, `fix(cli): …`, `docs: …`; see git log",
+  "changeset": "a PR that changes what users get adds one (`npx changeset`, @dryfit/cli; patch for fixes, minor for features while 0.x); tests, docs and CI need none",
+  "guides": ["CLAUDE.md"],
+
+  "design": {
+    "briefs": "docs/design/briefs",
+    "uxRules": ["CLAUDE.md (User-facing copy)"],
+    "tokens": {
+      "file": "apps/menubar/tokens.json",
+      "write": "npm run menubar:tokens",
+      "check": "npm run menubar:tokens -- --check"
+    },
+    "kit": [
+      "apps/menubar/Sources/DryfitMenu/UI/Controls.swift",
+      "apps/menubar/Sources/DryfitMenu/UI/Theme.swift"
+    ],
+    "surfaces": [
+      {
+        "name": "menu bar app",
+        "spec": ["docs/design/dryfit-states.html"],
+        "ids": "<section id> per state: m-… widget, w-… window, s-… sheets, d-… dialogs, f-… flows, n-… notifications; light and dark from the page's #th-l/#th-d switch",
+        "renderMock": "node apps/menubar/scripts/mock-render.mjs {out} {states}",
+        "scenes": "LiveScenes in apps/menubar/Tests/DryfitMenuTests/LiveCapture.swift, one per state id, with the brief's fixture data",
+        "compare": "npm run menubar:compare -- {states}",
+        "diffs": "apps/menubar/.build/compare/diff",
+        "regression": null
+      }
+    ]
+  },
+
+  "checks": {
+    "narrow": ["npm run menubar:test -- --filter <Suite>", "npm test -w <workspace>"],
+    "full": [
+      "npm test",
+      "npm run typecheck",
+      "npm run lint",
+      "npm run menubar:test",
+      "npm run menubar:tokens -- --check"
+    ]
+  },
+
+  "realWorld": [
+    {
+      "when": "the CLI or daemon changed",
+      "how": "scripts/newcomer.sh (a clean first run), then npm run test:integration"
+    },
+    { "when": "the menu bar app talks to the daemon differently", "how": "npm run menubar:e2e" }
+  ]
+}

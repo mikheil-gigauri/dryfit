@@ -18,6 +18,8 @@
     "test:integration": "npm run test:integration --workspaces --if-present",
     "test:all": "npm run test:all --workspaces --if-present",
     "menubar:test": "cd apps/menubar && xcrun swift test",
+    "menubar:tokens": "node apps/menubar/scripts/tokens.mjs",
+    "menubar:compare": "apps/menubar/scripts/compare.sh",
     "menubar:e2e": "npm run build -w @dryfit/cli && apps/menubar/scripts/e2e.sh",
     "menubar:bundle": "apps/menubar/scripts/bundle.sh",
     "menubar:dmg": "apps/menubar/scripts/bundle.sh && apps/menubar/scripts/dmg.sh",

@@ -3,6 +3,7 @@ import { DEPENDENCY_FIELDS, type SnapshotMeta } from '../model.ts';
 import type { CoreDeps } from '../ports.ts';
 import { cachePathsFor } from '../project/cache-paths.ts';
 import { connectedTo, type LibraryGraph, loadLibraryGraph } from '../project/library-graph.ts';
+import { liveReloadSettingFor } from '../project/live-reload.ts';
 import { loadProject } from '../project/load-project.ts';
 import { isRecord, stableStringify, tryParseJson } from '../util/json.ts';
 import { joinPath } from '../util/path.ts';
@@ -85,6 +86,8 @@ export async function restoreConsumer(deps: CoreDeps, input: RestoreConsumerInpu
     }
   }
 
+  const configs = await revertedConfigs(deps, consumer, meta, linkedLibraries, input.force === true);
+
   await deps.fs.writeText(joinPath(consumer, 'package.json'), snapshotManifest);
   for (const lockfile of adapter.lockfiles) {
     const saved = meta.lockfiles.includes(lockfile)
@@ -93,6 +96,7 @@ export async function restoreConsumer(deps: CoreDeps, input: RestoreConsumerInpu
     if (saved === undefined) await deps.fs.remove(joinPath(consumer, lockfile));
     else await deps.fs.writeText(joinPath(consumer, lockfile), saved);
   }
+  for (const [file, text] of configs) await deps.fs.writeText(joinPath(consumer, file), text);
 
   // With node_modules in place, only what differs from the restored lockfile is installed; when that
   // fails, or there is no node_modules, the full clean install runs, as it always did.
@@ -167,6 +171,37 @@ async function relinkOthers(
       : [{ library: requireLibrary(state, link.library), version: link.installedVersion }],
   );
   if (libraries.length > 0) await installLinks(deps, { consumer, libraries });
+}
+
+/**
+ * The config files whose live reload setting is to be taken out, with their new text (ADR 0007): the
+ * snapshot's copy when the user has not changed the file since, else the file with only the setting
+ * put back. Read before anything is written, so a file that no longer parses stops the restore unless
+ * forced, which puts the snapshot's copy back.
+ */
+async function revertedConfigs(
+  deps: CoreDeps,
+  consumer: string,
+  meta: SnapshotMeta,
+  libraries: readonly string[],
+  force: boolean,
+): Promise<Map<string, string>> {
+  const reverted = new Map<string, string>();
+  for (const file of meta.configFiles ?? []) {
+    const original = await deps.fs.readText(joinPath(snapshotDir(deps, consumer), 'configs', file));
+    const current = await deps.fs.readText(joinPath(consumer, file));
+    if (original === undefined || current === undefined) continue;
+    const text = liveReloadSettingFor(file, deps.integrations)?.revert(current, original, libraries);
+    if (text === undefined && !force) {
+      throw new DryfitError(
+        'manifest-drifted',
+        `${consumer}/${file} no longer parses, so dryfit cannot take out its dev server setting. Fix the file, or restore with force to put back the copy from before linking.`,
+        { consumer },
+      );
+    }
+    if ((text ?? original) !== current) reverted.set(file, text ?? original);
+  }
+  return reverted;
 }
 
 /** `library` and every linked library tied to it by dependencies, through any registered library. */

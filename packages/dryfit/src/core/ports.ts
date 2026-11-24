@@ -136,6 +136,28 @@ export interface ConsumerIntegration {
   detect(project: ProjectInfo): boolean;
   /** Cache folders relative to the project root. */
   cachePaths(project: ProjectInfo): readonly string[];
+  /** A dev server setting that lets a running dev server pick up each install (ADR 0007). */
+  readonly liveReload?: LiveReloadSetting;
+}
+
+/**
+ * A setting dryfit keeps in a consumer's config files while it is linked, so that a dev server that is
+ * already running rebuilds from each install instead of serving what it pre-bundled when it started.
+ * Edits change only the setting and keep every other byte of the file.
+ */
+export interface LiveReloadSetting {
+  /** Root-level config files the setting lives in. */
+  readonly files: readonly string[];
+  /** The file with the setting on for `libraries`; undefined when it already is, or the file cannot be edited. */
+  apply(text: string, libraries: readonly string[]): string | undefined;
+  /** Whether the file has the setting on for every one of `libraries`. */
+  isOn(text: string, libraries: readonly string[]): boolean;
+  /**
+   * `current` with the setting as `original` had it: `original` itself when `current` is exactly what
+   * `apply` made of it, else `current` with only the setting changed back. Undefined when `current`
+   * cannot be read.
+   */
+  revert(current: string, original: string, libraries: readonly string[]): string | undefined;
 }
 
 export type DryfitEvent =

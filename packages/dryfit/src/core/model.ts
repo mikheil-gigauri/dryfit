@@ -83,4 +83,9 @@ export interface SnapshotMeta {
   /** Lockfiles present at the time of linking; empty if the consumer had none. */
   readonly lockfiles: readonly string[];
   readonly createdAt: string;
+  /**
+   * Config files copied under `configs/` for a live reload setting (ADR 0007). Absent in snapshots
+   * taken before dryfit kept one, whose consumers are then left without it.
+   */
+  readonly configFiles?: readonly string[];
 }

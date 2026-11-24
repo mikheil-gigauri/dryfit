@@ -1,7 +1,8 @@
 /**
  * The commit guard (ADR 0005, ADR 0012): a block of POSIX sh placed at the top of a consumer's
  * pre-commit hook. It refuses a commit when a staged manifest or lockfile mentions a dryfit dev
- * version, which is exactly what a linked consumer's files contain until they are restored.
+ * version, or a staged angular.json or project.json holds dryfit's live reload setting, which is
+ * exactly what a linked consumer's files contain until they are restored.
  *
  * It needs neither Node nor dryfit at commit time, so it works from GUI git clients with a minimal
  * PATH and cannot break when dryfit is moved or uninstalled.
@@ -14,6 +15,9 @@ const NEW_HOOK = '#!/bin/sh\n';
 /** Matches a dev version as `nextDevVersion` writes it: `-dev.` or `.dev.` plus a 14-digit stamp. */
 export const DEV_VERSION_PATTERN = '[-.]dev\\.[0-9]{14}';
 
+/** Marks a dev server setting dryfit keeps while linked (ADR 0007), so the guard can find it. */
+export const LINKED_MARKER = 'dryfit:linked';
+
 const STAGED_FILES = [
   'package.json',
   'package-lock.json',
@@ -21,6 +25,8 @@ const STAGED_FILES = [
   'pnpm-lock.yaml',
   'yarn.lock',
   'bun.lock',
+  'angular.json',
+  'project.json',
 ]
   .map((name) => `':(glob)**/${name}'`)
   .join(' ');
@@ -33,7 +39,7 @@ const BODY = [
   // core.quotePath=false keeps non-ASCII paths readable by `git show`; git still quotes paths holding
   // tabs, newlines, quotes or backslashes, which no manifest or lockfile path is expected to contain.
   `dryfit_leaks=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR -- ${STAGED_FILES} | while IFS= read -r dryfit_file; do`,
-  `  if git show ":$dryfit_file" 2>/dev/null | grep -Eq -- '${DEV_VERSION_PATTERN}'; then printf '  %s\\n' "$dryfit_file"; fi`,
+  `  if git show ":$dryfit_file" 2>/dev/null | grep -Eq -- '${DEV_VERSION_PATTERN}|"${LINKED_MARKER}"'; then printf '  %s\\n' "$dryfit_file"; fi`,
   'done)',
   'if [ -n "$dryfit_leaks" ]; then',
   `  printf 'dryfit: these staged files point at a local dev build:\\n%s\\n' "$dryfit_leaks" >&2`,

@@ -15,6 +15,18 @@ it knows about in that app:
 
 dryfit only ever deletes folders inside the app.
 
+## Angular: no restart after the first
+
+The Angular CLI's dev server bundles every dependency once, when it starts, and never looks at
+`node_modules` again. So while an Angular app is linked, dryfit adds the linked libraries to
+`prebundle.exclude` of each dev server in `angular.json` (or a root `project.json`), marked with
+`"dryfit:linked"`. `ng serve` then builds them with your app, notices each install, and reloads the page.
+
+Restart the dev server once after linking, so it reads the new setting. After that, syncs need no restart,
+and dryfit clears no caches and does not ask for one. `dryfit restore` takes the setting out again, and the
+commit guard refuses to commit it. dryfit changes only that setting and keeps the rest of the file as you
+wrote it.
+
 ## Restart the dev server
 
 A running dev server holds the old build in memory. After a sync, restart it unless it reloaded on its own.

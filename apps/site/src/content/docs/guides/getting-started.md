@@ -78,7 +78,8 @@ dryfit watch
 Every time you save, dryfit builds the library, publishes a new dev version such as
 `1.4.1-dev.20261119143201`, and installs it into every linked app. When it clears an app's framework
 caches, it tells you to restart that app's dev server: one that is running keeps serving the old build
-until then.
+until then. An Angular app needs that restart only once, after linking
+([Frameworks and caches](/dryfit/guides/frameworks/)).
 
 `watch` prints what dryfit does as it happens. Ctrl-C stops the printing, not the watching: dryfit keeps
 installing every save until you run `dryfit unwatch`. To build and install just once, run `dryfit sync`.

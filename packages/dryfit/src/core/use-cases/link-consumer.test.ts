@@ -15,7 +15,7 @@ const published: DryfitState = {
 const snapshotDir = (consumer: string) => `${HOME}/snapshots/${pathSlug(consumer)}`;
 
 describe('linkConsumer', () => {
-  it('snapshots the manifest and lockfile before anything changes', async () => {
+  it('snapshots the manifest, lockfile and dev server config before anything changes', async () => {
     const { deps, fs } = createScenario({ state: registered });
     const before = fs.snapshot(SHOP);
 
@@ -24,11 +24,13 @@ describe('linkConsumer', () => {
     const dir = snapshotDir(SHOP);
     expect(await fs.readText(`${dir}/package.json`)).toBe(before[`${SHOP}/package.json`]);
     expect(await fs.readText(`${dir}/package-lock.json`)).toBe(before[`${SHOP}/package-lock.json`]);
+    expect(await fs.readText(`${dir}/configs/angular.json`)).toBe(before[`${SHOP}/angular.json`]);
     expect(JSON.parse((await fs.readText(`${dir}/meta.json`)) ?? '')).toEqual({
       consumer: SHOP,
       packageManager: 'npm',
       lockfiles: ['package-lock.json'],
       createdAt: '2026-11-18T14:32:01.000Z',
+      configFiles: ['angular.json'],
     });
   });
 

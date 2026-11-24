@@ -14,7 +14,10 @@
       "write": "npm run menubar:tokens",
       "check": "npm run menubar:tokens -- --check"
     },
-    "kit": ["apps/menubar/Sources/DryfitMenu/UI/Controls.swift", "apps/menubar/Sources/DryfitMenu/UI/Theme.swift"],
+    "kit": [
+      "apps/menubar/Sources/DryfitMenu/UI/Controls.swift",
+      "apps/menubar/Sources/DryfitMenu/UI/Theme.swift"
+    ],
     "surfaces": [
       {
         "name": "menu bar app",
@@ -31,11 +34,20 @@
 
   "checks": {
     "narrow": ["npm run menubar:test -- --filter <Suite>", "npm test -w <workspace>"],
-    "full": ["npm test", "npm run typecheck", "npm run lint", "npm run menubar:test", "npm run menubar:tokens -- --check"]
+    "full": [
+      "npm test",
+      "npm run typecheck",
+      "npm run lint",
+      "npm run menubar:test",
+      "npm run menubar:tokens -- --check"
+    ]
   },
 
   "realWorld": [
-    { "when": "the CLI or daemon changed", "how": "scripts/newcomer.sh (a clean first run), then npm run test:integration" },
+    {
+      "when": "the CLI or daemon changed",
+      "how": "scripts/newcomer.sh (a clean first run), then npm run test:integration"
+    },
     { "when": "the menu bar app talks to the daemon differently", "how": "npm run menubar:e2e" }
   ]
 }

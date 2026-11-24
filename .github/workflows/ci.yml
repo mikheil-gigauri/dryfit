@@ -26,6 +26,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: npx biome ci --reporter=github .
+      # The menu bar app's Tokens.swift and the mocks' token blocks match apps/menubar/tokens.json.
+      - run: npm run menubar:tokens -- --check
       - run: npm run typecheck
       # Once, on .nvmrc's Node: Astro needs a newer one than dryfit's minimum.
       - run: npm run build -w @dryfit/site

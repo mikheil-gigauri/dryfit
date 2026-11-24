@@ -14,7 +14,8 @@
       "!packages/dryfit/CHANGELOG.md",
       "!apps/site/src/content",
       "!packages/dryfit/skill",
-      "!apps/menubar/Resources/AppIcon.icon"
+      "!apps/menubar/Resources/AppIcon.icon",
+      "!docs/design"
     ]
   },
   "formatter": {

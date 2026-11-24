@@ -25,21 +25,26 @@ export async function loadLibraryGraph(
   const names = new Set(libraries.map((library) => library.name));
   const graph = new Map<string, ReadonlySet<string>>();
   for (const library of libraries) {
-    const edges = new Set<string>();
-    for (const dir of new Set([library.root, library.publishDir])) {
-      const text = await fs.readText(joinPath(dir, 'package.json'));
-      const manifest = text === undefined ? undefined : tryParseJson(text);
-      if (!isRecord(manifest)) continue;
-      for (const field of RUNTIME_DEPENDENCY_FIELDS) {
-        const entries = manifest[field];
-        if (!isRecord(entries)) continue;
-        for (const name of Object.keys(entries))
-          if (names.has(name) && name !== library.name) edges.add(name);
-      }
-    }
-    graph.set(library.name, edges);
+    const dependencies = await runtimeDependencies(fs, library);
+    graph.set(library.name, new Set([...dependencies].filter((name) => names.has(name))));
   }
   return graph;
+}
+
+/** Every package a library's own package.json or its publish folder's names in a runtime field. */
+export async function runtimeDependencies(fs: FileSystem, library: LibraryRecord): Promise<Set<string>> {
+  const dependencies = new Set<string>();
+  for (const dir of new Set([library.root, library.publishDir])) {
+    const text = await fs.readText(joinPath(dir, 'package.json'));
+    const manifest = text === undefined ? undefined : tryParseJson(text);
+    if (!isRecord(manifest)) continue;
+    for (const field of RUNTIME_DEPENDENCY_FIELDS) {
+      const entries = manifest[field];
+      if (!isRecord(entries)) continue;
+      for (const name of Object.keys(entries)) if (name !== library.name) dependencies.add(name);
+    }
+  }
+  return dependencies;
 }
 
 /** Every library that depends on `name`, directly or through others. */

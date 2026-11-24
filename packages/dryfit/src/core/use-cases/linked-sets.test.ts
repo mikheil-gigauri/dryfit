@@ -23,8 +23,10 @@ function workspace({
   links = [] as DryfitState['links'],
   published = {} as Record<string, string>,
   pinnedSiblings = {} as Record<string, Record<string, string>>,
+  registered = ['common', 'ui', 'assets'],
+  root = {} as Record<string, string>,
 } = {}) {
-  const libraries = ['common', 'ui', 'assets'].map((name) => {
+  const libraries = registered.map((name) => {
     const record = lib(name);
     const version = published[record.name];
     const pinned = pinnedSiblings[record.name];
@@ -33,6 +35,7 @@ function workspace({
       : { ...record, lastPublishedVersion: version, ...(pinned && { pinnedSiblings: pinned }) };
   });
   const files: Record<string, string> = {
+    ...root,
     [`${WS}/libs/common/package.json`]: json({ name: COMMON, version: '19.24.0' }),
     [`${WS}/dist/libs/common/package.json`]: json({ name: COMMON, version: '19.24.0' }),
     [`${WS}/libs/ui/package.json`]: json({
@@ -243,6 +246,28 @@ describe('libraries that pin each other (ADR 0014)', () => {
         `dryfit link ${APP} --library ${COMMON} --library ${UI}`,
       );
     });
+
+    it.each([
+      ['an npm workspace', { [`${WS}/package.json`]: json({ name: 'ws', workspaces: ['libs/*'] }) }],
+      ['an Nx workspace', { [`${WS}/package.json`]: json({ name: 'ws' }), [`${WS}/nx.json`]: json({}) }],
+    ])(
+      'says to register and link a sibling the dev build pins when it is not registered, in %s',
+      async (_, root) => {
+        const { deps, events } = workspace({ published, registered: ['ui', 'assets'], root });
+
+        const result = await linkConsumer(deps, { library: UI, consumer: APP });
+
+        expect(result.status).toBe('failed');
+        const failure = events.events.find((event) => event.type === 'install:failed');
+        const output = failure && 'output' in failure ? failure.output : '';
+        expect(output).toContain('npm error ERESOLVE');
+        expect(output).toContain(
+          `${UI} depends on ${COMMON}, which ${APP} also uses, but dryfit does not know ${COMMON}.`,
+        );
+        expect(output).toContain(`dryfit add ${WS}/libs/common`);
+        expect(output).toContain(`dryfit link ${APP} --library ${UI} --library ${COMMON}`);
+      },
+    );
 
     it('refuses the whole set, touching nothing, when the app does not use one of them', async () => {
       const { deps, fs, store } = workspace({ published });

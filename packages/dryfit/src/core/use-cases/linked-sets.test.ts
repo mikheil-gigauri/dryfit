@@ -253,19 +253,23 @@ describe('libraries that pin each other (ADR 0014)', () => {
     ])(
       'says to register and link a sibling the dev build pins when it is not registered, in %s',
       async (_, root) => {
-        const { deps, events } = workspace({ published, registered: ['ui', 'assets'], root });
+        const { deps, events, store } = workspace({ published, registered: ['ui', 'assets'], root });
 
         const result = await linkConsumer(deps, { library: UI, consumer: APP });
 
         expect(result.status).toBe('failed');
         const failure = events.events.find((event) => event.type === 'install:failed');
         const output = failure && 'output' in failure ? failure.output : '';
-        expect(output).toContain('npm error ERESOLVE');
-        expect(output).toContain(
-          `${UI} depends on ${COMMON}, which ${APP} also uses, but dryfit does not know ${COMMON}.`,
-        );
-        expect(output).toContain(`dryfit add ${WS}/libs/common`);
-        expect(output).toContain(`dryfit link ${APP} --library ${UI} --library ${COMMON}`);
+        const saved = store.current.links.find((link) => link.library === UI)?.message;
+        // The CLI prints the output; `dryfit status` and the menu bar app show the link's message.
+        for (const text of [output, result.message, saved]) {
+          expect(text).toContain('npm error ERESOLVE');
+          expect(text).toContain(
+            `${UI} depends on ${COMMON}, which ${APP} also uses, but dryfit does not know ${COMMON}.`,
+          );
+          expect(text).toContain(`dryfit add ${WS}/libs/common`);
+          expect(text).toContain(`dryfit link ${APP} --library ${UI} --library ${COMMON}`);
+        }
       },
     );
 

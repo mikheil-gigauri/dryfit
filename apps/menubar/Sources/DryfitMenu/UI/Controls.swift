@@ -152,19 +152,34 @@ struct Spin: View {
   var size: CGFloat = 12
   var tint: Color = Theme.accent
   var track: Color = Theme.buttonHover
+  @Environment(\.drawStill) private var still
 
   var body: some View {
-    TimelineView(.animation) { context in
-      let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.8) / 0.8
-      ZStack {
-        Circle().stroke(track, lineWidth: 2)
-        Circle().trim(from: 0, to: 0.25).stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .butt))
-          .rotationEffect(.degrees(turn * 360 - 90))
+    Group {
+      if still {
+        ring(turn: 0)
+      } else {
+        TimelineView(.animation) { context in
+          ring(turn: context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.8) / 0.8)
+        }
       }
     }
     .frame(width: size, height: size)
     .accessibilityHidden(true)
   }
+
+  private func ring(turn: Double) -> some View {
+    ZStack {
+      Circle().stroke(track, lineWidth: 2)
+      Circle().trim(from: 0, to: 0.25).stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .butt))
+        .rotationEffect(.degrees(turn * 360 - 90))
+    }
+  }
+}
+
+extension EnvironmentValues {
+  /// Draw anything that moves at its first frame, so a snapshot comes out the same on every run.
+  @Entry var drawStill = false
 }
 
 /// A one-point rule in the hairline colour.
